@@ -74,7 +74,6 @@ if __name__ == '__main__':
             'Comb FL': 'Combined FL (WAT/NED)',
             'FLS': 'Flow Limitation Score',
             'CAI': 'CAI',
-            'RDI': 'RDI',
             'NED RDI': 'NED RDI',
             'Regul': 'Regularity',
             'Period': 'Periodicity',
