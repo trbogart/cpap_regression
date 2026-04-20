@@ -22,7 +22,7 @@ class Plotter:
                 'Period': 'Periodicity',
                 'GI': 'Glasgow Index: Overall',
                 'GI TH': 'Glasgow Index: Top-Heavy',
-                'GI VA': 'Glasgow Index: Var Amp',
+                'GI VA': 'Glasgow Index: Variable Amplitude',
             }
 
             # initialize empty data (column-based)
