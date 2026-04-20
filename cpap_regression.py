@@ -20,7 +20,9 @@ class Plotter:
                 'NED RERA': 'NED RERA',
                 'Regul': 'Regularity',
                 'Period': 'Periodicity',
-                'GI': 'Glasgow Index',
+                'GI': 'Glasgow Index: Overall',
+                'GI TH': 'Glasgow Index: Top-Heavy',
+                'GI VA': 'Glasgow Index: Var Amp',
             }
 
             # initialize empty data (column-based)
