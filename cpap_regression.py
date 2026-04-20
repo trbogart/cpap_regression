@@ -5,8 +5,10 @@ import numpy as np
 
 
 class Plotter:
-    def __init__(self, filename: str, min_pressure: float, max_pressure: float):
+    def __init__(self, filename: str):
         with open(filename, mode='r') as file:
+            min_pressure = 7.0
+            max_pressure = 8.0
             pressure_field = 'Pressure'
             y_fields = {
                 'Comb FL': 'Combined FL (WAT/NED)',
@@ -26,7 +28,7 @@ class Plotter:
 
             # populate data from CSV
             for row in csv.DictReader(file):
-                if row['AHI']:
+                if row['CAI']:
                     pressure = float(row[pressure_field])
                     if min_pressure <= pressure <= max_pressure:
                         self.cols[pressure_field].append(pressure)
@@ -44,14 +46,12 @@ class Plotter:
             for pressure in sorted(pressure_counts.keys()):
                 print(f'{pressure:.1f}: {pressure_counts[pressure]}')
 
-
             for y_field, title in y_fields.items():
                 self.plot(pressure_field, y_field, title)
 
     @staticmethod
     def rename_file(filename):
         return filename.lower().replace(' ', '_')
-
 
     def plot(self, x_field, y_field, title):
         if title is None:
@@ -69,16 +69,19 @@ class Plotter:
         a, b, c = coef2
         model2 = np.poly1d(coef2)
 
-        # plot minima or maxima, if in domain
+        # plot minima or maxima of quadratic regression, if in domain
         x_extrema = -b / (2 * a)
+        # noinspection PyTypeChecker
         if min(x) <= x_extrema <= max(x):
             plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
-        # Plot
+        # plot regressions
         polyline = np.linspace(min(x), max(x), 20)
-        plt.scatter(x, y)
         plt.plot(polyline, model2(polyline), color='red')
         plt.plot(polyline, model1(polyline), color='blue')
+
+        # finish plot
+        plt.scatter(x, y)
         plt.xlabel(x_field)
         plt.ylabel(y_field)
         plt.title(title)
@@ -88,5 +91,4 @@ class Plotter:
 
 
 if __name__ == '__main__':
-    Plotter('cpap.csv', 7.0, 8.0)
-
+    Plotter('cpap.csv')
