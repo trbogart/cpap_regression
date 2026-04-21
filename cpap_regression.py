@@ -13,13 +13,11 @@ class Plotter:
             pressure_field = 'Pressure'
             y_fields = {
                 'CAI': 'CAI (AS11)',
-                '95%FL': '95% Flow Limitation (AS11)',
                 'Comb FL': 'Combined FL (WAT/NED)',
                 'FLS': 'Flow Limitation Score (WAT)',
                 'Regul': 'Regularity (WAT)',
                 'Period': 'Periodicity (WAT)',
                 'NED Mean': 'NED Mean (NED)',
-                'NED RDI': 'Est. RDI (NED)',
                 'NED RERA': 'RERA Index (NED)',
                 'GI': 'Glasgow Index: Overall',
                 'GI TH': 'Glasgow Index: Top-Heavy',
