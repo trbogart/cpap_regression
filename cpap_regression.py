@@ -13,7 +13,6 @@ class Plotter:
             pressure_field = 'Pressure'
             y_fields = {
                 'CAI': 'CAI (AS11)',
-                'RDI': 'RDI (AS11)',
                 '95%FL': '95% Flow Limitation (AS11)',
                 'Comb FL': 'Combined FL (WAT/NED)',
                 'FLS': 'Flow Limitation Score (WAT)',
@@ -52,7 +51,7 @@ class Plotter:
             print('Pressure Counts:')
             for pressure in sorted(pressure_counts.keys()):
                 print(f'{pressure:.1f}: {pressure_counts[pressure]}')
-            print(f'Average Pressure: {np.average(self.pressures):.2f}')
+            print(f'Average Pressure: {np.average(self.pressures):.3f}')
 
             self.min_pressure = min_pressure
             self.max_pressure = max_pressure
