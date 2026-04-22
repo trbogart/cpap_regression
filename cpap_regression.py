@@ -3,25 +3,26 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 class Plotter:
     def __init__(self, filename: str):
         with open(filename, mode='r') as file:
             # manually set min/max pressure
-            min_pressure = 7.0
+            min_pressure = 7.2
             max_pressure = 8.0
             pressure_field = 'Pressure'
             y_fields = {
                 'CAI': 'CAI (AS11)',
+                'IFL': 'IFL Symptom Risk %',
                 'Comb FL': 'Combined FL (WAT/NED)',
-                'FLS': 'Flow Limitation Score (WAT)',
-                'Regul': 'Regularity (WAT)',
-                'Period': 'Periodicity (WAT)',
-                'NED Mean': 'NED Mean (NED)',
-                'NED RERA': 'RERA Index (NED)',
-                'GI': 'Glasgow Index: Overall',
-                'GI TH': 'Glasgow Index: Top-Heavy',
-                'GI VA': 'Glasgow Index: Variable Amplitude',
+                # 'FLS': 'Flow Limitation Score (WAT)',
+                # 'Regul': 'Regularity (WAT)',
+                # 'Period': 'Periodicity (WAT)',
+                # 'NED Mean': 'NED Mean (NED)',
+                # 'NED RERA': 'RERA Index (NED)',
+                # 'GI': 'Glasgow Index: Overall',
+                # 'GI TH': 'Glasgow Index: Top-Heavy',
+                # 'GI VA': 'Glasgow Index: Variable Amplitude',
+                # 'AmpCV': 'Amplitude CV %',
             }
 
             # initialize empty data (column-based)
