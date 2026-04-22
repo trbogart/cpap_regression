@@ -7,7 +7,7 @@ class Plotter:
     def __init__(self, filename: str):
         with open(filename, mode='r') as file:
             # manually set min/max pressure
-            min_pressure = 7.2
+            min_pressure = 7.0
             max_pressure = 8.0
             pressure_field = 'Pressure'
             y_fields = {
