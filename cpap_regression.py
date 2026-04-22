@@ -22,7 +22,6 @@ class Plotter:
                 'GI': 'Glasgow Index: Overall',
                 # 'GI TH': 'Glasgow Index: Top-Heavy',
                 # 'GI VA': 'Glasgow Index: Variable Amplitude',
-                # 'AmpCV': 'Amplitude CV %',
             }
 
             # initialize empty data (column-based)
