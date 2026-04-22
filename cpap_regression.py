@@ -7,7 +7,7 @@ class Plotter:
     def __init__(self, filename: str):
         with open(filename, mode='r') as file:
             # manually set min/max pressure
-            min_pressure = 7.0
+            min_pressure = 6.8
             max_pressure = 8.0
             pressure_field = 'Pressure'
             y_fields = {
@@ -46,6 +46,7 @@ class Plotter:
                 pressure_counts[pressure / 10] = 0
             for pressure in self.pressures:
                 pressure_counts[pressure] = pressure_counts.get(pressure, 0) + 1
+            print(f'N={len(self.pressures)}')
             print('Pressure Counts:')
             for pressure in sorted(pressure_counts.keys()):
                 print(f'{pressure:.1f}: {pressure_counts[pressure]}')
