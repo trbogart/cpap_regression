@@ -70,6 +70,7 @@ class Plotter:
     @staticmethod
     def parse_value(value: str) -> float:
         if ':' in value:
+            # handle usage
             tokens = value.split(':')
             return float(tokens[0]) + float(tokens[1])/60
         return float(value)
