@@ -7,21 +7,24 @@ class Plotter:
     def __init__(self, filename: str):
         with open(filename, mode='r') as file:
             # manually set min/max pressure
-            min_pressure = 6.8
+            min_pressure = 7.0
             max_pressure = 8.0
+            max_leak = 2.0
             pressure_field = 'Pressure'
             y_fields = {
                 'CAI': 'CAI (AS11)',
                 'Comb FL': 'Combined FL (WAT/NED)',
                 'FLS': 'Flow Limitation Score (WAT)',
                 # 'IFL': 'IFL Symptom Risk %',
-                # 'Regul': 'Regularity (WAT)',
-                # 'Period': 'Periodicity (WAT)',
                 # 'NED Mean': 'NED Mean (NED)',
-                # 'NED RERA': 'RERA Index (NED)',
+                'NED RERA': 'RERA Index (NED)',
                 'GI': 'Glasgow Index: Overall',
-                # 'GI TH': 'Glasgow Index: Top-Heavy',
-                # 'GI VA': 'Glasgow Index: Variable Amplitude',
+                'GI TH': 'Glasgow Index: Top-Heavy',
+                'GI VA': 'Glasgow Index: Variable Amplitude',
+                # 'BOI': 'Brief Obstruction Index',
+                'Obs': 'Obstructive Event Index (RDI-CAI)',
+                'Regul': 'Regularity (WAT)',
+                'Period': 'Periodicity (WAT)',
             }
 
             # initialize empty data (column-based)
