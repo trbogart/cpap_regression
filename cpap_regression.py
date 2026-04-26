@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Plotter:
-    def __init__(self, filename: str, strip_outliers: float = 0.0):
+    def __init__(self, filename: str, strip_outliers: float = 0):
         self.outlier = strip_outliers
         with open(filename, mode='r') as file:
             # manually set min/max pressure
@@ -127,13 +127,15 @@ class Plotter:
         if self.min_pressure <= x_extrema <= self.max_pressure:
             plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
+        correl = np.corrcoef(x, y)[0, 1]
+
         # plot regressions
         plt.plot(self.polyline, model2(self.polyline), color='red')
         plt.plot(self.polyline, model1(self.polyline), color='blue')
 
         # finish plot
         plt.scatter(x, y)
-        plt.xlabel('Pressure')
+        plt.xlabel(f'Pressure — correlation {correl:.2f}')
         plt.ylabel(y_field)
         plt.title(title)
         plt.tight_layout()
