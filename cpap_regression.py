@@ -9,22 +9,27 @@ class Plotter:
             # manually set min/max pressure
             min_pressure = 7.0
             max_pressure = 8.0
-            max_leak = 2.0
             pressure_field = 'Pressure'
             y_fields = {
                 'CAI': 'CAI (AS11)',
+                'RDI': 'RDI (AS11)',
+                # 'Obs': 'Obstructive Event Index (AS11)',
                 'Comb FL': 'Combined FL (WAT/NED)',
                 'FLS': 'Flow Limitation Score (WAT)',
                 # 'IFL': 'IFL Symptom Risk %',
-                # 'NED Mean': 'NED Mean (NED)',
-                'NED RERA': 'RERA Index (NED)',
-                'GI': 'Glasgow Index: Overall',
+                'NED Mean': 'NED Mean (NED)',
+                'NED RERA': 'RERA/hr (NED)',
+                'NED RDI': 'Est. RDI (NED)',
+                'GI': 'Glasgow Index',
                 'GI TH': 'Glasgow Index: Top-Heavy',
                 'GI VA': 'Glasgow Index: Variable Amplitude',
-                # 'BOI': 'Brief Obstruction Index',
-                'Obs': 'Obstructive Event Index (RDI-CAI)',
+                'BOI': 'Brief Obstruction Index',
                 'Regul': 'Regularity (WAT)',
                 'Period': 'Periodicity (WAT)',
+                # 'Usage': 'Usage (AS11)',
+                'RHR': 'Resting Heart Rate (Oura)',
+                'HRV': 'Heart Rate Variability (Oura)',
+                'SpO2': 'SpO2 (Oura)',
             }
 
             # initialize empty data (column-based)
@@ -40,7 +45,7 @@ class Plotter:
                         self.pressures.append(pressure)
 
                         for field in y_fields.keys():
-                            self.data[field].append(float(row[field]))
+                            self.data[field].append(self.parse_value(row[field]))
 
             # pressure histogram
             pressure_counts = dict[float, int]()
@@ -63,8 +68,15 @@ class Plotter:
                 self.plot(y_field, title)
 
     @staticmethod
-    def rename_file(filename: str):
-        return filename.lower().replace(' ', '_')
+    def parse_value(value: str) -> float:
+        if ':' in value:
+            tokens = value.split(':')
+            return float(tokens[0]) + float(tokens[1])/60
+        return float(value)
+
+    @staticmethod
+    def field_to_filename(field: str):
+        return field.lower().replace(' ', '_')
 
     def plot(self, y_field: str, title: str):
         title = title if title else y_field
@@ -95,7 +107,7 @@ class Plotter:
         plt.ylabel(y_field)
         plt.title(title)
         plt.tight_layout()
-        plt.savefig(Plotter.rename_file(f'{y_field}.png'), bbox_inches='tight')
+        plt.savefig(self.field_to_filename(f'{y_field}.png'), bbox_inches='tight')
         plt.show()
 
 
