@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Plotter:
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, strip_outliers: float = 0.0):
+        self.outlier = strip_outliers
         with open(filename, mode='r') as file:
             # manually set min/max pressure
             min_pressure = 7.0
@@ -32,37 +33,49 @@ class Plotter:
                 'SpO2': 'SpO2 (Oura)',
             }
 
-            # initialize empty data (column-based)
-            self.data = {field: list[float]() for field in y_fields.keys()}
-            self.pressures = list[float]()
+            self.data_by_pressure = {}
 
             # populate data from CSV
             for row in csv.DictReader(file):
                 # include rows populated with data (does not support partial data) with pressure in range
                 if row['CAI']:
                     pressure = float(row[pressure_field])
+
                     if min_pressure <= pressure <= max_pressure:
-                        self.pressures.append(pressure)
+                        data_for_pressure = self.data_by_pressure.get(pressure, [])
+                        if not data_for_pressure:
+                            self.data_by_pressure[pressure] = data_for_pressure
+
+                        data = {}
+                        data_for_pressure.append(data)
 
                         for field in y_fields.keys():
-                            self.data[field].append(self.parse_value(row[field]))
+                            data[field] = self.parse_value(row[field])
 
             # pressure histogram
-            pressure_counts = dict[float, int]()
+            pressure_counts = {}
             for pressure in range(int(min_pressure * 10), 1 + int(max_pressure * 10), 2):
                 # populate missing counts
                 pressure_counts[pressure / 10] = 0
-            for pressure in self.pressures:
-                pressure_counts[pressure] = pressure_counts.get(pressure, 0) + 1
-            print(f'N={len(self.pressures)}')
+            total_count = 0
+            for pressure, rows in self.data_by_pressure.items():
+                pressure_counts[pressure] = pressure_counts.get(pressure, 0) + len(rows)
+                total_count += len(rows)
+            print(f'N={total_count}')
             print('Pressure Counts:')
             for pressure in sorted(pressure_counts.keys()):
-                print(f'{pressure:.1f}: {pressure_counts[pressure]}')
-            print(f'Average Pressure: {np.average(self.pressures):.3f}')
+                stripped_suffix = ''
+                if strip_outliers > 0:
+                    stripped = int(strip_outliers * pressure_counts[pressure])
+                    if stripped > 0:
+                        stripped_suffix = f' (-{stripped * 2} outliers)'
+                print(f'{pressure:.1f}: {pressure_counts[pressure]}{stripped_suffix}')
+            avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
+            print(f'Average Pressure: {avg_pressure :.3f}')
 
             self.min_pressure = min_pressure
             self.max_pressure = max_pressure
-            self.polyline = np.linspace(self.min_pressure, self.max_pressure, len(self.pressures))
+            self.polyline = np.linspace(self.min_pressure, self.max_pressure, total_count)
 
             for y_field, title in y_fields.items():
                 self.plot(y_field, title)
@@ -82,14 +95,30 @@ class Plotter:
     def plot(self, y_field: str, title: str):
         title = title if title else y_field
 
-        y = self.data[y_field]
+        x = []
+        y = []
+
+        for pressure, rows in self.data_by_pressure.items():
+            values = []
+            for row in rows:
+                if y_field in row:
+                    values.append(row[y_field])
+
+            strip = int(self.outlier * len(values))
+            if strip >= 1:
+                values.sort()
+                values = values[strip:-strip]
+
+            for value in values:
+                x.append(pressure)
+                y.append(value)
 
         # linear regression
-        coef1 = np.polyfit(self.pressures, y, 1)
+        coef1 = np.polyfit(x, y, 1)
         model1 = np.poly1d(coef1)
 
         # quadratic regression
-        coef2 = np.polyfit(self.pressures, y, 2)
+        coef2 = np.polyfit(x, y, 2)
         a, b, c = coef2
         model2 = np.poly1d(coef2)
 
@@ -103,7 +132,7 @@ class Plotter:
         plt.plot(self.polyline, model1(self.polyline), color='blue')
 
         # finish plot
-        plt.scatter(self.pressures, y)
+        plt.scatter(x, y)
         plt.xlabel('Pressure')
         plt.ylabel(y_field)
         plt.title(title)
