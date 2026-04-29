@@ -28,9 +28,9 @@ class Plotter:
                 'Regul': 'Regularity (WAT)',
                 'Period': 'Periodicity (WAT)',
                 # 'Usage': 'Usage (AS11)',
-                'RHR': 'Resting Heart Rate (Oura)',
-                'HRV': 'Heart Rate Variability (Oura)',
-                'SpO2': 'SpO2 (Oura)',
+                # 'RHR': 'Resting Heart Rate (Oura)',
+                # 'HRV': 'Heart Rate Variability (Oura)',
+                # 'SpO2': 'SpO2 (Oura)',
             }
 
             self.data_by_pressure = {}
