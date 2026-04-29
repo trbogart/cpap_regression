@@ -8,8 +8,6 @@ class Plotter:
         self.outlier = strip_outliers
         with open(filename, mode='r') as file:
             # manually set min/max pressure
-            min_pressure = 7.0
-            max_pressure = 8.0
             pressure_field = 'Pressure'
             y_fields = {
                 'CAI': 'CAI (AS11)',
@@ -41,19 +39,20 @@ class Plotter:
                 if row['CAI']:
                     pressure = float(row[pressure_field])
 
-                    if min_pressure <= pressure <= max_pressure:
-                        data_for_pressure = self.data_by_pressure.get(pressure, [])
-                        if not data_for_pressure:
-                            self.data_by_pressure[pressure] = data_for_pressure
+                    data_for_pressure = self.data_by_pressure.get(pressure, [])
+                    if not data_for_pressure:
+                        self.data_by_pressure[pressure] = data_for_pressure
 
-                        data = {}
-                        data_for_pressure.append(data)
+                    data = {}
+                    data_for_pressure.append(data)
 
-                        for field in y_fields.keys():
-                            data[field] = self.parse_value(row[field])
+                    for field in y_fields.keys():
+                        data[field] = self.parse_value(row[field])
 
             # pressure histogram
             pressure_counts = {}
+            min_pressure = min(self.data_by_pressure.keys())
+            max_pressure = max(self.data_by_pressure.keys())
             for pressure in range(int(min_pressure * 10), 1 + int(max_pressure * 10), 2):
                 # populate missing counts
                 pressure_counts[pressure / 10] = 0
@@ -135,7 +134,7 @@ class Plotter:
 
         # finish plot
         plt.scatter(x, y)
-        plt.xlabel(f'Pressure — correlation {correl:.2f}')
+        plt.xlabel(f'Pressure — r={correl:.2f}')
         plt.ylabel(y_field)
         plt.title(title)
         plt.tight_layout()
