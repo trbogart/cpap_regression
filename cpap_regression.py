@@ -1,32 +1,44 @@
 import csv
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 class Plotter:
-    def __init__(self, filename: str, strip_outliers: float = 0, include_quadratic: bool = False):
+    def __init__(self,
+                 filename: str,
+                 strip_outliers: float = 0,
+                 include_quadratic: bool = False,
+                 min_pressure_opt: Optional[float] = None,
+                 max_pressure_opt: Optional[float] = None,
+                 ):
         self.outlier = strip_outliers
         self.include_quadratic = include_quadratic
+
         with open(filename, mode='r') as file:
             # manually set min/max pressure
             pressure_field = 'Pressure'
             y_fields = {
-                'CAI': 'CAI (AS11)',
-                'RDI': 'RDI (AS11)',
+                # 'Usage': 'Usage (AS11)',
+                # 'AHI': 'AHI (AS11)',
+                # 'CAI': 'CAI (AS11)',
+                # 'RDI': 'RDI (AS11)',
+                # '95%FL': '95% Flow Limitation (AS11)',
+                # 'AvgLR': 'Average Leak Rate (AS11',
                 # 'Obs': 'Obstructive Event Index (AS11)',
                 'Comb FL': 'Combined FL (WAT/NED)',
                 'FLS': 'Flow Limitation Score (WAT)',
-                # 'IFL': 'IFL Symptom Risk %',
-                'NED Mean': 'NED Mean (NED)',
-                'NED RERA': 'RERA/hr (NED)',
+                # 'IFL': 'IFL Symptom Risk % (WAT/NED/GI)',
+                # 'NED Mean': 'NED Mean (NED)',
+                # 'NED RERA': 'RERA/hr (NED)',
                 'NED RDI': 'Est. RDI (NED)',
-                'GI': 'Glasgow Index',
-                'GI TH': 'Glasgow Index: Top-Heavy',
-                'GI VA': 'Glasgow Index: Variable Amplitude',
-                'BOI': 'Brief Obstruction Index',
-                'Regul': 'Regularity (WAT)',
+                # 'GI': 'Glasgow Index',
+                # 'GI TH': 'Glasgow Index: Top-Heavy',
+                # 'GI VA': 'Glasgow Index: Variable Amplitude',
+                # 'BOI': 'Brief Obstruction Index',
+                # 'Regul': 'Regularity (WAT)',
                 'Period': 'Periodicity (WAT)',
-                # 'Usage': 'Usage (AS11)',
                 # 'RHR': 'Resting Heart Rate (Oura)',
                 # 'HRV': 'Heart Rate Variability (Oura)',
                 # 'SpO2': 'SpO2 (Oura)',
@@ -40,6 +52,11 @@ class Plotter:
                 if row['CAI']:
                     pressure = float(row[pressure_field])
 
+                    if min_pressure_opt is not None and pressure < min_pressure_opt:
+                        continue
+                    if max_pressure_opt is not None and pressure > max_pressure_opt:
+                        continue
+
                     data_for_pressure = self.data_by_pressure.get(pressure, [])
                     if not data_for_pressure:
                         self.data_by_pressure[pressure] = data_for_pressure
@@ -52,9 +69,10 @@ class Plotter:
 
             # pressure histogram
             pressure_counts = {}
-            min_pressure = min(self.data_by_pressure.keys())
-            max_pressure = max(self.data_by_pressure.keys())
-            for pressure in range(int(min_pressure * 10), 1 + int(max_pressure * 10), 2):
+            self.min_pressure = min_pressure_opt if min_pressure_opt is not None else min(self.data_by_pressure.keys())
+            self.max_pressure = max_pressure_opt if max_pressure_opt is not None else max(self.data_by_pressure.keys())
+
+            for pressure in range(int(self.min_pressure * 10), 1 + int(self.max_pressure * 10), 2):
                 # populate missing counts
                 pressure_counts[pressure / 10] = 0
             total_count = 0
@@ -73,10 +91,6 @@ class Plotter:
             avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
             print(f'Average Pressure: {avg_pressure :.3f}')
 
-            self.min_pressure = min_pressure
-            self.max_pressure = max_pressure
-            self.polyline = np.linspace(self.min_pressure, self.max_pressure, total_count)
-
             for y_field, title in y_fields.items():
                 self.plot(y_field, title)
 
@@ -85,7 +99,7 @@ class Plotter:
         if ':' in value:
             # handle usage
             tokens = value.split(':')
-            return float(tokens[0]) + float(tokens[1])/60
+            return float(tokens[0]) + float(tokens[1]) / 60
         return float(value)
 
     @staticmethod
@@ -116,6 +130,7 @@ class Plotter:
         # linear regression
         coef1 = np.polyfit(x, y, 1)
         model1 = np.poly1d(coef1)
+        polyline = np.linspace(self.min_pressure, self.max_pressure, len(x))
 
         # quadratic regression
         if self.include_quadratic:
@@ -128,16 +143,16 @@ class Plotter:
             if self.min_pressure <= x_extrema <= self.max_pressure:
                 plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
-            plt.plot(self.polyline, model2(self.polyline), color='red')
+            plt.plot(polyline, model2(polyline), color='red')
 
         # linear regression
-        plt.plot(self.polyline, model1(self.polyline), color='blue')
+        plt.plot(polyline, model1(polyline), color='blue')
 
         correl = np.corrcoef(x, y)[0, 1]
 
         # finish plot
         plt.scatter(x, y)
-        plt.xlabel(f'Pressure (r={correl:.2f})')
+        plt.xlabel(f'Pressure (r = {correl:.2f})')
         plt.ylabel(y_field)
         plt.title(title)
         plt.tight_layout()
