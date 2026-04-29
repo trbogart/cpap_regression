@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Plotter:
-    def __init__(self, filename: str, strip_outliers: float = 0):
+    def __init__(self, filename: str, strip_outliers: float = 0, include_quadratic: bool = False):
         self.outlier = strip_outliers
+        self.include_quadratic = include_quadratic
         with open(filename, mode='r') as file:
             # manually set min/max pressure
             pressure_field = 'Pressure'
@@ -117,24 +118,26 @@ class Plotter:
         model1 = np.poly1d(coef1)
 
         # quadratic regression
-        coef2 = np.polyfit(x, y, 2)
-        a, b, c = coef2
-        model2 = np.poly1d(coef2)
+        if self.include_quadratic:
+            coef2 = np.polyfit(x, y, 2)
+            a, b, c = coef2
+            model2 = np.poly1d(coef2)
 
-        # plot minima or maxima of quadratic regression, if in domain
-        x_extrema = -b / (2 * a)
-        if self.min_pressure <= x_extrema <= self.max_pressure:
-            plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
+            # plot minima or maxima of quadratic regression, if in domain
+            x_extrema = -b / (2 * a)
+            if self.min_pressure <= x_extrema <= self.max_pressure:
+                plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
+
+            plt.plot(self.polyline, model2(self.polyline), color='red')
+
+        # linear regression
+        plt.plot(self.polyline, model1(self.polyline), color='blue')
 
         correl = np.corrcoef(x, y)[0, 1]
 
-        # plot regressions
-        plt.plot(self.polyline, model2(self.polyline), color='red')
-        plt.plot(self.polyline, model1(self.polyline), color='blue')
-
         # finish plot
         plt.scatter(x, y)
-        plt.xlabel(f'Pressure — r={correl:.2f}')
+        plt.xlabel(f'Pressure (r={correl:.2f})')
         plt.ylabel(y_field)
         plt.title(title)
         plt.tight_layout()
