@@ -8,10 +8,12 @@ import numpy as np
 class Plotter:
     def __init__(self,
                  filename: str,
-                 include_quadratic: bool = False,
                  min_pressure_opt: Optional[float] = None,
                  max_pressure_opt: Optional[float] = None,
+                 strip_outliers: float = 0.0,
+                 include_quadratic: bool = False,
                  ):
+        self.outlier = strip_outliers
         self.include_quadratic = include_quadratic
 
         with open(filename, mode='r') as file:
@@ -80,7 +82,12 @@ class Plotter:
             print(f'N={total_count}')
             print('Pressure Counts:')
             for pressure in sorted(pressure_counts.keys()):
-                print(f'{pressure:.1f}: {pressure_counts[pressure]}')
+                stripped_suffix = ''
+                if strip_outliers > 0:
+                    stripped = int(strip_outliers * pressure_counts[pressure])
+                    if stripped > 0:
+                        stripped_suffix = f' (-{stripped * 2} outliers)'
+                print(f'{pressure:.1f}: {pressure_counts[pressure]}{stripped_suffix}')
             avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
             print(f'Average Pressure: {avg_pressure :.3f}')
 
@@ -110,6 +117,11 @@ class Plotter:
             for row in rows:
                 if y_field in row:
                     values.append(row[y_field])
+
+            strip = int(self.outlier * len(values))
+            if strip >= 1:
+                values.sort()
+                values = values[strip:-strip]
 
             for value in values:
                 x.append(pressure)
@@ -152,5 +164,6 @@ if __name__ == '__main__':
     Plotter('cpap.csv',
             min_pressure_opt = None,
             max_pressure_opt = None,
+            strip_outliers = 0.0,
             include_quadratic = False
             )
