@@ -150,7 +150,7 @@ class Plotter:
 
 if __name__ == '__main__':
     Plotter('cpap.csv',
-            min_pressure_opt = 6.8,
+            min_pressure_opt = None,
             max_pressure_opt = None,
             include_quadratic = False
             )
