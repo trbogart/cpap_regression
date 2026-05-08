@@ -20,29 +20,34 @@ class Plotter:
             # manually set min/max pressure
             pressure_field = 'Pressure'
             y_fields = {
-                # 'Usage': 'Usage (AS11)',
-                # 'AHI': 'AHI (AS11)',
-                # 'CAI': 'CAI (AS11)',
-                # 'RDI': 'RDI (AS11)',
-                # '95%FL': '95% Flow Limitation (AS11)',
-                # 'AvgLR': 'Average Leak Rate (AS11',
-                # 'Obs': 'Obstructive Event Index (AS11)',
                 'Comb FL': 'Combined FL (WAT/NED)',
                 'FLS': 'Flow Limitation Score (WAT)',
-                # 'IFL': 'IFL Symptom Risk % (WAT/NED/GI)',
-                # 'NED Mean': 'NED Mean (NED)',
-                # 'NED RERA': 'RERA/hr (NED)',
+                'GI': 'Glasgow Index',
                 'NED RDI': 'Est. RDI (NED)',
-                # 'GI': 'Glasgow Index',
-                # 'GI TH': 'Glasgow Index: Top-Heavy',
-                # 'GI VA': 'Glasgow Index: Variable Amplitude',
-                # 'BOI': 'Brief Obstruction Index',
-                # 'Regul': 'Regularity (WAT)',
                 'Period': 'Periodicity (WAT)',
-                # 'RHR': 'Resting Heart Rate (Oura)',
-                # 'HRV': 'Heart Rate Variability (Oura)',
-                # 'SpO2': 'SpO2 (Oura)',
             }
+
+            other_y_fields = {
+                'Usage': 'Usage (AS11)',
+                'AHI': 'AHI (AS11)',
+                'CAI': 'CAI (AS11)',
+                'RDI': 'RDI (AS11)',
+                '95%FL': '95% Flow Limitation (AS11)',
+                'AvgLR': 'Average Leak Rate (AS11',
+                'Obs': 'Obstructive Event Index (AS11)',
+                'IFL': 'IFL Symptom Risk % (WAT/NED/GI)',
+                'NED Mean': 'NED Mean (NED)',
+                'NED RERA': 'RERA/hr (NED)',
+                'GI TH': 'Glasgow Index: Top-Heavy',
+                'GI VA': 'Glasgow Index: Variable Amplitude',
+                'BOI': 'Brief Obstruction Index',
+                'Regul': 'Regularity (WAT)',
+                'RHR': 'Resting Heart Rate (Oura)',
+                'HRV': 'Heart Rate Variability (Oura)',
+                'SpO2': 'SpO2 (Oura)',
+            }
+
+            all_fields = set(y_fields.keys()).union(other_y_fields.keys())
 
             self.data_by_pressure = {}
 
@@ -64,7 +69,7 @@ class Plotter:
                     data = {}
                     data_for_pressure.append(data)
 
-                    for field in y_fields.keys():
+                    for field in all_fields:
                         data[field] = self.parse_value(row[field])
 
             # pressure histogram
@@ -91,8 +96,21 @@ class Plotter:
             avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
             print(f'Average Pressure: {avg_pressure :.3f}')
 
+            all_correlations = []
+
             for y_field, title in y_fields.items():
-                self.plot(y_field, title)
+                correl = self.plot(y_field, title)
+                all_correlations.append((title, correl))
+
+            for y_field, title in other_y_fields.items():
+                correl = self.plot(y_field, title, plot = False)
+                all_correlations.append((title, correl))
+
+            print()
+            print('Correlations with pressure:')
+            all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
+            for title, correl in all_correlations:
+                print(f'- {title}: {correl:.3f}')
 
     @staticmethod
     def parse_value(value: str) -> float:
@@ -106,7 +124,7 @@ class Plotter:
     def field_to_filename(field: str):
         return field.lower().replace(' ', '_')
 
-    def plot(self, y_field: str, title: str):
+    def plot(self, y_field: str, title: str, plot: bool = True) -> float:
         title = title if title else y_field
 
         x = []
@@ -127,37 +145,41 @@ class Plotter:
                 x.append(pressure)
                 y.append(value)
 
-        # linear regression
-        coef1 = np.polyfit(x, y, 1)
-        model1 = np.poly1d(coef1)
-        polyline = np.linspace(self.min_pressure, self.max_pressure, len(x))
+        if plot:
+            # linear regression
+            coef1 = np.polyfit(x, y, 1)
+            model1 = np.poly1d(coef1)
+            polyline = np.linspace(self.min_pressure, self.max_pressure, len(x))
 
-        # quadratic regression
-        if self.include_quadratic:
-            coef2 = np.polyfit(x, y, 2)
-            a, b, c = coef2
-            model2 = np.poly1d(coef2)
+            # quadratic regression
+            if self.include_quadratic:
+                coef2 = np.polyfit(x, y, 2)
+                a, b, c = coef2
+                model2 = np.poly1d(coef2)
 
-            # plot minima or maxima of quadratic regression, if in domain
-            x_extrema = -b / (2 * a)
-            if self.min_pressure <= x_extrema <= self.max_pressure:
-                plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
+                # plot minima or maxima of quadratic regression, if in domain
+                x_extrema = -b / (2 * a)
+                if self.min_pressure <= x_extrema <= self.max_pressure:
+                    plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
-            plt.plot(polyline, model2(polyline), color='red')
+                plt.plot(polyline, model2(polyline), color='red')
 
-        # linear regression
-        plt.plot(polyline, model1(polyline), color='blue')
+            # linear regression
+            plt.plot(polyline, model1(polyline), color='blue')
 
         correl = np.corrcoef(x, y)[0, 1]
 
-        # finish plot
-        plt.scatter(x, y)
-        plt.xlabel(f'Pressure (r = {correl:.2f})')
-        plt.ylabel(y_field)
-        plt.title(title)
-        plt.tight_layout()
-        plt.savefig(self.field_to_filename(f'{y_field}.png'), bbox_inches='tight')
-        plt.show()
+        if plot:
+            # finish plot
+            plt.scatter(x, y)
+            plt.xlabel(f'Pressure (r = {correl:.2f})')
+            plt.ylabel(y_field)
+            plt.title(title)
+            plt.tight_layout()
+            plt.savefig(self.field_to_filename(f'{y_field}.png'), bbox_inches='tight')
+            plt.show()
+
+        return correl
 
 
 if __name__ == '__main__':
