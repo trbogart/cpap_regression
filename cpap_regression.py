@@ -24,7 +24,7 @@ class Plotter:
                 'FLS': 'Flow Limitation Score (WAT)',
                 'GI': 'Glasgow Index',
                 'NED RDI': 'Est. RDI (NED)',
-                'Period': 'Periodicity (WAT)',
+                'BOI': 'Brief Obstruction Index',
             }
 
             other_y_fields = {
@@ -39,7 +39,7 @@ class Plotter:
                 'NED RERA': 'RERA/hr (NED)',
                 'GI TH': 'Glasgow Index: Top-Heavy',
                 'GI VA': 'Glasgow Index: Variable Amplitude',
-                'BOI': 'Brief Obstruction Index',
+                'Period': 'Periodicity (WAT)',
                 'Regul': 'Regularity (WAT)',
                 'RHR': 'Resting Heart Rate (Oura)',
                 'HRV': 'Heart Rate Variability (Oura)',
@@ -186,5 +186,5 @@ if __name__ == '__main__':
             min_pressure_opt = None,
             max_pressure_opt = None,
             strip_outliers = 0.0,
-            include_quadratic = False
+            include_quadratic = True
             )
