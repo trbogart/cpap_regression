@@ -10,6 +10,7 @@ class Plotter:
                  filename: str,
                  min_pressure_opt: Optional[float] = None,
                  max_pressure_opt: Optional[float] = None,
+                 min_usage_opt: Optional[float] = None,
                  strip_outliers: float = 0.0,
                  include_quadratic: bool = False,
                  ):
@@ -59,6 +60,8 @@ class Plotter:
                     if min_pressure_opt is not None and pressure < min_pressure_opt:
                         continue
                     if max_pressure_opt is not None and pressure > max_pressure_opt:
+                        continue
+                    if min_usage_opt is not None and self.parse_value(row['Usage']) < min_usage_opt:
                         continue
 
                     data_for_pressure = self.data_by_pressure.get(pressure, [])
@@ -180,11 +183,11 @@ class Plotter:
 
         return correl
 
-
 if __name__ == '__main__':
     Plotter('cpap.csv',
             min_pressure_opt = None,
             max_pressure_opt = None,
+            min_usage_opt = None,
             strip_outliers = 0.0,
-            include_quadratic = True
+            include_quadratic = False
             )
