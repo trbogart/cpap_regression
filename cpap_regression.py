@@ -12,7 +12,7 @@ class Plotter:
                  min_pressure_opt: Optional[float] = None,
                  max_pressure_opt: Optional[float] = None,
                  min_usage_opt: Optional[float] = None,
-                 min_leak_rate_opt: Optional[float] = None,
+                 max_leak_rate_opt: Optional[float] = None,
                  strip_outliers: float = 0.0,
                  include_quadratic: bool = False,
                  ):
@@ -56,16 +56,20 @@ class Plotter:
             # populate data from CSV
             for row in csv.DictReader(file):
                 # include rows populated with data (does not support partial data) with pressure in range
-                if row['CAI']:
+                if row['Pressure']:
                     pressure = float(row[pressure_field])
 
                     if min_pressure_opt is not None and pressure < min_pressure_opt:
+                        print(f'Exclude {row['Date']}: Pressure={pressure}')
                         continue
                     if max_pressure_opt is not None and pressure > max_pressure_opt:
+                        print(f'Exclude {row['Date']}: Pressure={pressure}')
                         continue
                     if min_usage_opt is not None and self.parse_value(row['Usage']) < min_usage_opt:
+                        print(f'Exclude {row['Date']}: Usage={row['Usage']}')
                         continue
-                    if min_leak_rate_opt is not None and self.parse_value(row['AvgLR']) < min_leak_rate_opt:
+                    if max_leak_rate_opt is not None and self.parse_value(row['AvgLR']) > max_leak_rate_opt:
+                        print(f'Exclude {row['Date']}: AvgLR={row['AvgLR']}')
                         continue
 
                     data_for_pressure = self.data_by_pressure.get(pressure, [])
@@ -203,7 +207,7 @@ if __name__ == '__main__':
             min_pressure_opt=config_float('min_pressure'),
             max_pressure_opt=config_float('max_pressure'),
             min_usage_opt=config_float('min_usage'),
-            min_leak_rate_opt=config_float('min_leak_rate'),
+            max_leak_rate_opt=config_float('max_leak_rate'),
             strip_outliers=0.0,
             include_quadratic=False
             )
