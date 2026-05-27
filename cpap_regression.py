@@ -19,17 +19,11 @@ class Plotter:
                  max_leak_rate: Optional[float] = None,
                  alpha: Optional[float] = None,
                  strip_outliers: Optional[float] = None,
+                 include_leak_rate: bool = False,
                  include_quadratic: bool = False,
                  ):
         self.outlier = strip_outliers if strip_outliers is not None else 0
         self.include_quadratic = include_quadratic
-
-        include_leak_rate = False
-        alpha = config_float('alpha')
-        min_pressure = config_float('min_pressure')
-        max_pressure = config_float('max_pressure')
-        max_leak_rate = config_float('max_leak_rate')
-        min_usage = config_float('min_usage')
 
         df = pd.read_csv('cpap.csv').replace('--', np.nan).dropna()
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
@@ -216,17 +210,13 @@ if __name__ == '__main__':
         config = yaml.safe_load(file)
 
 
-    def config_float(key):
-        s = config.get(key)
-        return float(s) if s is not None else None
-
-
     Plotter('cpap.csv',
-            min_pressure=config_float('min_pressure'),
-            max_pressure=config_float('max_pressure'),
-            min_usage=config_float('min_usage'),
-            max_leak_rate=config_float('max_leak_rate'),
-            alpha=config_float('alpha'),
-            strip_outliers=config_float('strip_outliers'),
-            include_quadratic=False
+            min_pressure=config['min_pressure'],
+            max_pressure=config['max_pressure'],
+            min_usage=config['min_usage'],
+            max_leak_rate=config['max_leak_rate'],
+            alpha=config['alpha'],
+            strip_outliers=config['strip_outliers'],
+            include_leak_rate=config['include_leak_rate'],
+            include_quadratic=config['include_quadratic'],
             )
