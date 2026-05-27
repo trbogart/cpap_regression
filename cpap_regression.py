@@ -1,11 +1,10 @@
-import csv
 from collections import defaultdict
 from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 import pandas as pd
+import yaml
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
 
@@ -208,7 +207,6 @@ if __name__ == '__main__':
     with open('config.yaml', 'r') as file:
         # Use safe_load to avoid executing arbitrary code from the file
         config = yaml.safe_load(file)
-
 
     Plotter('cpap.csv',
             min_pressure=config['min_pressure'],
