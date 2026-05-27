@@ -1,9 +1,13 @@
 import csv
+from collections import defaultdict
 from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
+import pandas as pd
+from sklearn.linear_model import ElasticNet
+from sklearn.preprocessing import StandardScaler
 
 
 class Plotter:
@@ -19,108 +23,128 @@ class Plotter:
         self.outlier = strip_outliers
         self.include_quadratic = include_quadratic
 
-        with open(filename, mode='r') as file:
-            # manually set min/max pressure
-            pressure_field = 'Pressure'
-            y_fields = {
-                'Comb FL': 'Combined FL (WAT/NED)',
-                'FLS': 'Flow Limitation Score (WAT)',
-                'GI': 'Glasgow Index',
-                'NED RDI': 'Est. RDI (NED)',
-                'BOI': 'Brief Obstruction Index',
-            }
+        with open('config.yaml', 'r') as file:
+            # Use safe_load to avoid executing arbitrary code from the file
+            config = yaml.safe_load(file)
 
-            other_y_fields = {
-                'Usage': 'Usage (AS11)',
-                'AHI': 'AHI (AS11)',
-                'CAI': 'CAI (AS11)',
-                'RDI': 'RDI (AS11)',
-                '95%FL': '95% Flow Limitation (AS11)',
-                'AvgLR': 'Average Leak Rate (AS11)',
-                'IFL': 'IFL Symptom Risk % (WAT/NED/GI)',
-                'NED Mean': 'NED Mean (NED)',
-                'NED RERA': 'RERA/hr (NED)',
-                'GI TH': 'Glasgow Index: Top-Heavy',
-                'GI VA': 'Glasgow Index: Variable Amplitude',
-                'Period': 'Periodicity (WAT)',
-                'Regul': 'Regularity (WAT)',
-                'RHR': 'Resting Heart Rate (Oura)',
-                'HRV': 'Heart Rate Variability (Oura)',
-                'SpO2': 'SpO2 (Oura)',
-            }
+        def config_float(key):
+            s = config.get(key)
+            return float(s) if s is not None else None
 
-            all_fields = set(y_fields.keys()).union(other_y_fields.keys())
+        include_leak_rate = False
+        alpha = config_float('alpha')
+        min_pressure = config_float('min_pressure')
+        max_pressure = config_float('max_pressure')
+        max_leak_rate = config_float('max_leak_rate')
+        min_usage = config_float('min_usage')
 
-            self.data_by_pressure = {}
+        df = pd.read_csv('cpap.csv').replace('--', np.nan).dropna()
+        df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
 
-            # populate data from CSV
-            for row in csv.DictReader(file):
-                # include rows populated with data (does not support partial data) with pressure in range
-                if row['Pressure']:
-                    pressure = float(row[pressure_field])
+        y_fields = {
+            'Comb FL': 'Combined FL (WAT/NED)',
+            'FLS': 'Flow Limitation Score (WAT)',
+            'GI': 'Glasgow Index',
+            'NED RDI': 'Est. RDI (NED)',
+            'BOI': 'Brief Obstruction Index',
+        }
 
-                    if min_pressure_opt is not None and pressure < min_pressure_opt:
-                        print(f'Exclude {row['Date']}: Pressure={pressure}')
-                        continue
-                    if max_pressure_opt is not None and pressure > max_pressure_opt:
-                        print(f'Exclude {row['Date']}: Pressure={pressure}')
-                        continue
-                    if min_usage_opt is not None and self.parse_value(row['Usage']) < min_usage_opt:
-                        print(f'Exclude {row['Date']}: Usage={row['Usage']}')
-                        continue
-                    if max_leak_rate_opt is not None and self.parse_value(row['AvgLR']) > max_leak_rate_opt:
-                        print(f'Exclude {row['Date']}: AvgLR={row['AvgLR']}')
-                        continue
+        other_y_fields = {
+            'Usage': 'Usage (AS11)',
+            'AHI': 'AHI (AS11)',
+            'CAI': 'CAI (AS11)',
+            'RDI': 'RDI (AS11)',
+            '95%FL': '95% Flow Limitation (AS11)',
+            'AvgLR': 'Average Leak Rate (AS11)',
+            'IFL': 'IFL Symptom Risk % (WAT/NED/GI)',
+            'NED Mean': 'NED Mean (NED)',
+            'NED RERA': 'RERA/hr (NED)',
+            'GI TH': 'Glasgow Index: Top-Heavy',
+            'GI VA': 'Glasgow Index: Variable Amplitude',
+            'Period': 'Periodicity (WAT)',
+            'Regul': 'Regularity (WAT)',
+            'RHR': 'Resting Heart Rate (Oura)',
+            'HRV': 'Heart Rate Variability (Oura)',
+            'SpO2': 'SpO2 (Oura)',
+        }
+        all_fields = set(y_fields.keys()).union(other_y_fields.keys())
+        numeric_fields = list(all_fields)
+        df[numeric_fields] = df[numeric_fields].apply(pd.to_numeric, errors='coerce').dropna()
 
-                    data_for_pressure = self.data_by_pressure.get(pressure, [])
-                    if not data_for_pressure:
-                        self.data_by_pressure[pressure] = data_for_pressure
+        if min_pressure is not None:
+            df = df[df['Pressure'] >= min_pressure]
+        if max_pressure is not None:
+            df = df[df['Pressure'] >= max_pressure]
+        if max_leak_rate is not None:
+            df = df[df['AvgLR'] <= max_leak_rate]
+        if min_usage is not None:
+            df = df[df['Usage'] >= min_usage]
 
-                    data = {}
-                    data_for_pressure.append(data)
+        self.data_by_pressure = defaultdict(list)
+        pressure_counts = defaultdict(int)
+        for _, row in df.iterrows():
+            pressure = row['Pressure']
+            pressure_counts[pressure] += 1
+            self.data_by_pressure[pressure].append(row)
 
-                    for field in all_fields:
-                        data[field] = self.parse_value(row[field])
+        # pressure histogram TODO refactor to use DataFrame
+        self.min_pressure = min_pressure_opt if min_pressure_opt is not None else min(self.data_by_pressure.keys())
+        self.max_pressure = max_pressure_opt if max_pressure_opt is not None else max(self.data_by_pressure.keys())
 
-            # pressure histogram
-            pressure_counts = {}
-            self.min_pressure = min_pressure_opt if min_pressure_opt is not None else min(self.data_by_pressure.keys())
-            self.max_pressure = max_pressure_opt if max_pressure_opt is not None else max(self.data_by_pressure.keys())
+        for pressure in range(int(self.min_pressure * 10), 1 + int(self.max_pressure * 10), 2):
+            # populate missing counts
+            pressure_counts[pressure / 10] = 0
+        total_count = 0
+        for pressure, rows in self.data_by_pressure.items():
+            pressure_counts[pressure] = pressure_counts.get(pressure, 0) + len(rows)
+            total_count += len(rows)
+        print(f'N={total_count}')
+        print('Pressure Counts:')
+        for pressure in sorted(pressure_counts.keys()):
+            stripped_suffix = ''
+            if strip_outliers > 0:
+                stripped = int(strip_outliers * pressure_counts[pressure])
+                if stripped > 0:
+                    stripped_suffix = f' (-{stripped * 2} outliers)'
+            print(f'{pressure:.1f}: {pressure_counts[pressure]}{stripped_suffix}')
+        avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
+        print(f'Average Pressure: {avg_pressure :.3f}')
 
-            for pressure in range(int(self.min_pressure * 10), 1 + int(self.max_pressure * 10), 2):
-                # populate missing counts
-                pressure_counts[pressure / 10] = 0
-            total_count = 0
-            for pressure, rows in self.data_by_pressure.items():
-                pressure_counts[pressure] = pressure_counts.get(pressure, 0) + len(rows)
-                total_count += len(rows)
-            print(f'N={total_count}')
-            print('Pressure Counts:')
-            for pressure in sorted(pressure_counts.keys()):
-                stripped_suffix = ''
-                if strip_outliers > 0:
-                    stripped = int(strip_outliers * pressure_counts[pressure])
-                    if stripped > 0:
-                        stripped_suffix = f' (-{stripped * 2} outliers)'
-                print(f'{pressure:.1f}: {pressure_counts[pressure]}{stripped_suffix}')
-            avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
-            print(f'Average Pressure: {avg_pressure :.3f}')
+        all_correlations = []
 
-            all_correlations = []
+        for y_field, title in y_fields.items():
+            correl = self.plot(y_field, title)
+            all_correlations.append((title, correl))
 
-            for y_field, title in y_fields.items():
-                correl = self.plot(y_field, title)
-                all_correlations.append((title, correl))
+        for y_field, title in other_y_fields.items():
+            correl = self.plot(y_field, title, plot=False)
+            all_correlations.append((y_field, correl))
 
-            for y_field, title in other_y_fields.items():
-                correl = self.plot(y_field, title, plot=False)
-                all_correlations.append((title, correl))
+        print()
+        num_correlations = 10
+        print(f'Top {num_correlations} correlations with Pressure:')
+        all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
+        for title, correl in all_correlations[:num_correlations]:
+            print(f'- {title}: {correl:.3f}')
 
-            print()
-            print('Correlations with pressure:')
-            all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-            for title, correl in all_correlations:
-                print(f'- {title}: {correl:.3f}')
+        # run ElasticNet analysis
+        x_fields = ['Pressure', 'AvgLR'] if include_leak_rate else ['Pressure']
+
+        X = df[x_fields]
+        X = StandardScaler().fit_transform(X)
+
+        print()
+        print(f'Non-zero weights for {' + '.join(x_fields)} with alpha {alpha}:')
+        all_zero = True
+        for key in y_fields.keys():
+            y = df[[key]]
+            model = ElasticNet(alpha=alpha, l1_ratio=1, fit_intercept=True)
+            model.fit(X, y)
+            if sum(model.coef_):
+                all_zero = False
+                print(f'- {key}: Intercept={model.intercept_}, Weights={model.coef_}')
+        if all_zero:
+            print('- None')
 
     @staticmethod
     def parse_value(value: str) -> float:
