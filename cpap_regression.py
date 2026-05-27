@@ -13,23 +13,16 @@ from sklearn.preprocessing import StandardScaler
 class Plotter:
     def __init__(self,
                  filename: str,
-                 min_pressure_opt: Optional[float] = None,
-                 max_pressure_opt: Optional[float] = None,
-                 min_usage_opt: Optional[float] = None,
-                 max_leak_rate_opt: Optional[float] = None,
-                 strip_outliers: float = 0.0,
+                 min_pressure: Optional[float] = None,
+                 max_pressure: Optional[float] = None,
+                 min_usage: Optional[float] = None,
+                 max_leak_rate: Optional[float] = None,
+                 alpha: Optional[float] = None,
+                 strip_outliers: Optional[float] = None,
                  include_quadratic: bool = False,
                  ):
-        self.outlier = strip_outliers
+        self.outlier = strip_outliers if strip_outliers is not None else 0
         self.include_quadratic = include_quadratic
-
-        with open('config.yaml', 'r') as file:
-            # Use safe_load to avoid executing arbitrary code from the file
-            config = yaml.safe_load(file)
-
-        def config_float(key):
-            s = config.get(key)
-            return float(s) if s is not None else None
 
         include_leak_rate = False
         alpha = config_float('alpha')
@@ -74,7 +67,7 @@ class Plotter:
         if min_pressure is not None:
             df = df[df['Pressure'] >= min_pressure]
         if max_pressure is not None:
-            df = df[df['Pressure'] >= max_pressure]
+            df = df[df['Pressure'] <= max_pressure]
         if max_leak_rate is not None:
             df = df[df['AvgLR'] <= max_leak_rate]
         if min_usage is not None:
@@ -88,8 +81,8 @@ class Plotter:
             self.data_by_pressure[pressure].append(row)
 
         # pressure histogram TODO refactor to use DataFrame
-        self.min_pressure = min_pressure_opt if min_pressure_opt is not None else min(self.data_by_pressure.keys())
-        self.max_pressure = max_pressure_opt if max_pressure_opt is not None else max(self.data_by_pressure.keys())
+        self.min_pressure = min_pressure if min_pressure is not None else min(self.data_by_pressure.keys())
+        self.max_pressure = max_pressure if max_pressure is not None else max(self.data_by_pressure.keys())
 
         for pressure in range(int(self.min_pressure * 10), 1 + int(self.max_pressure * 10), 2):
             # populate missing counts
@@ -133,18 +126,19 @@ class Plotter:
         X = df[x_fields]
         X = StandardScaler().fit_transform(X)
 
-        print()
-        print(f'Non-zero weights for {' + '.join(x_fields)} with alpha {alpha}:')
-        all_zero = True
-        for key in y_fields.keys():
-            y = df[[key]]
-            model = ElasticNet(alpha=alpha, l1_ratio=1, fit_intercept=True)
-            model.fit(X, y)
-            if sum(model.coef_):
-                all_zero = False
-                print(f'- {key}: Intercept={model.intercept_}, Weights={model.coef_}')
-        if all_zero:
-            print('- None')
+        if alpha is not None:
+            print()
+            print(f'Non-zero weights for {' + '.join(x_fields)} with alpha {alpha}:')
+            all_zero = True
+            for key in y_fields.keys():
+                y = df[[key]]
+                model = ElasticNet(alpha=alpha, l1_ratio=1, fit_intercept=True)
+                model.fit(X, y)
+                if sum(model.coef_):
+                    all_zero = False
+                    print(f'- {key}: Intercept={model.intercept_}, Weights={model.coef_}')
+            if all_zero:
+                print('- None')
 
     @staticmethod
     def parse_value(value: str) -> float:
@@ -228,10 +222,11 @@ if __name__ == '__main__':
 
 
     Plotter('cpap.csv',
-            min_pressure_opt=config_float('min_pressure'),
-            max_pressure_opt=config_float('max_pressure'),
-            min_usage_opt=config_float('min_usage'),
-            max_leak_rate_opt=config_float('max_leak_rate'),
-            strip_outliers=0.0,
+            min_pressure=config_float('min_pressure'),
+            max_pressure=config_float('max_pressure'),
+            min_usage=config_float('min_usage'),
+            max_leak_rate=config_float('max_leak_rate'),
+            alpha=config_float('alpha'),
+            strip_outliers=config_float('strip_outliers'),
             include_quadratic=False
             )
