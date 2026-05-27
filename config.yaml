@@ -1,0 +1,4 @@
+min_pressure: 7.0
+max_leak_rate: 1.5
+min_usage: 6.0
+alpha: 1.0

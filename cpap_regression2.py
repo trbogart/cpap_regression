@@ -1,18 +1,32 @@
 import pandas as pd
+import yaml
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
 
 if __name__ == '__main__':
+    with open('config.yaml', 'r') as file:
+        # Use safe_load to avoid executing arbitrary code from the file
+        config = yaml.safe_load(file)
+
+
+    def config_float(key):
+        s = config.get(key)
+        return float(s) if s is not None else None
+
+
     include_leak_rate = False
-    alpha = 1.0
-    min_pressure = 7.0
-    max_leak_rate = 1.2
-    min_usage = 5
+    alpha = config_float('alpha')
+    min_pressure = config_float('min_pressure')
+    max_pressure = config_float('max_pressure')
+    max_leak_rate = config_float('max_leak_rate')
+    min_usage = config_float('min_usage')
 
     df = pd.read_csv('cpap.csv')
     df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
     if min_pressure is not None:
         df = df[df['Pressure'] >= min_pressure]
+    if max_pressure is not None:
+        df = df[df['Pressure'] >= max_pressure]
     if max_leak_rate is not None:
         df = df[df['AvgLR'] <= max_leak_rate]
     if min_usage is not None:
