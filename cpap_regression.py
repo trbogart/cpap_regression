@@ -18,13 +18,14 @@ class Plotter:
                  max_leak_rate: Optional[float] = None,
                  alpha: Optional[float] = None,
                  strip_outliers: Optional[float] = None,
-                 include_leak_rate: bool = False,
-                 include_quadratic: bool = False,
+                 include_leak_rate: Optional[bool] = False,
+                 num_correlations: Optional[int] = None,
+                 plot: Optional[bool] = None,
+                 plot_quadratic: Optional[bool] = None,
                  ):
-        self.outlier = strip_outliers if strip_outliers is not None else 0
-        self.include_quadratic = include_quadratic
+        self.outlier = strip_outliers
 
-        df = pd.read_csv('cpap.csv').replace('--', np.nan).dropna()
+        df = pd.read_csv(filename).replace('--', np.nan).dropna()
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
 
         y_fields = {
@@ -99,19 +100,21 @@ class Plotter:
         all_correlations = []
 
         for y_field, title in y_fields.items():
-            correl = self.plot(y_field, title)
+            # plot based on configuration
+            correl = self.plot(y_field, title, plot = plot, plot_quadratic = plot_quadratic)
             all_correlations.append((title, correl))
 
         for y_field, title in other_y_fields.items():
-            correl = self.plot(y_field, title, plot=False)
+            # never plot
+            correl = self.plot(y_field, title, plot = False)
             all_correlations.append((y_field, correl))
 
-        print()
-        num_correlations = 10
-        print(f'Top {num_correlations} correlations with Pressure:')
-        all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-        for title, correl in all_correlations[:num_correlations]:
-            print(f'- {title}: {correl:.3f}')
+        if num_correlations:
+            print()
+            print(f'Top {num_correlations} correlations with Pressure:')
+            all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
+            for title, correl in all_correlations[:num_correlations]:
+                print(f'- {title}: {correl:.3f}')
 
         # run ElasticNet analysis
         x_fields = ['Pressure', 'AvgLR'] if include_leak_rate else ['Pressure']
@@ -145,7 +148,7 @@ class Plotter:
     def field_to_filename(field: str):
         return field.lower().replace(' ', '_')
 
-    def plot(self, y_field: str, title: str, plot: bool = True) -> float:
+    def plot(self, y_field: str, title: str, plot: Optional[bool] = None, plot_quadratic: Optional[bool] = None) -> float:
         title = title if title else y_field
 
         x = []
@@ -173,7 +176,7 @@ class Plotter:
             polyline = np.linspace(self.min_pressure, self.max_pressure, len(x))
 
             # quadratic regression
-            if self.include_quadratic:
+            if plot_quadratic:
                 coef2 = np.polyfit(x, y, 2)
                 a, b, c = coef2
                 model2 = np.poly1d(coef2)
@@ -208,7 +211,7 @@ if __name__ == '__main__':
         # Use safe_load to avoid executing arbitrary code from the file
         config = yaml.safe_load(file)
 
-    Plotter('cpap.csv',
+    Plotter(filename=config['filename'],
             min_pressure=config['min_pressure'],
             max_pressure=config['max_pressure'],
             min_usage=config['min_usage'],
@@ -216,5 +219,7 @@ if __name__ == '__main__':
             alpha=config['alpha'],
             strip_outliers=config['strip_outliers'],
             include_leak_rate=config['include_leak_rate'],
-            include_quadratic=config['include_quadratic'],
+            num_correlations=config['num_correlations'],
+            plot=config['plot'],
+            plot_quadratic=config['plot_quadratic'],
             )
