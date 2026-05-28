@@ -1,5 +1,5 @@
 filename: cpap.csv # CSV file
-min_pressure: 7.0 # min pressure
+min_pressure: # min pressure
 max_pressure: # max pressure
 max_leak_rate: 1.5 # max AvgLR
 min_usage: 6.0 # min usage (hrs)

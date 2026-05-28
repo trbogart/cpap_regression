@@ -52,7 +52,7 @@ class Regression:
         print(f'N={len(self.df)}')
         print('Pressure Counts:')
         for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
-            print(f'{pressure:.1f}: {count}')
+            print(f'- {pressure:.1f}: {count}')
 
         avg_pressure = self.df['Pressure'].mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
