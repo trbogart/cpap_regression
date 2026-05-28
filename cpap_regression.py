@@ -1,138 +1,92 @@
-from collections import defaultdict
-from typing import Optional
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
+from numpy.polynomial.polynomial import Polynomial
 from sklearn.linear_model import ElasticNet
 from sklearn.preprocessing import StandardScaler
 
 
-class Plotter:
-    def __init__(self,
-                 filename: str,
-                 min_pressure: Optional[float] = None,
-                 max_pressure: Optional[float] = None,
-                 min_usage: Optional[float] = None,
-                 max_leak_rate: Optional[float] = None,
-                 alpha: Optional[float] = None,
-                 strip_outliers: Optional[float] = None,
-                 include_leak_rate: Optional[bool] = False,
-                 num_correlations: Optional[int] = None,
-                 plot: Optional[bool] = None,
-                 plot_quadratic: Optional[bool] = None,
-                 ):
-        self.outlier = strip_outliers
+@dataclass
+class Field:
+    name: str
+    title: str
+    plot: bool
 
-        df = pd.read_csv(filename).replace('--', np.nan).dropna()
+    def __init__(self, field_config: dict):
+        self.name = field_config['name']
+        self.title = field_config.get('title', self.name)
+        self.plot = field_config['plot'] if 'plot' in field_config else False
+
+
+class Regression:
+    def __init__(self, config_filename: str):
+        with open('config.yaml', 'r') as file:
+            # Use safe_load to avoid executing arbitrary code from the file
+            self.config = yaml.safe_load(file)
+
+        df = pd.read_csv(self.config['filename'])
+        df = df.replace('--', np.nan).dropna()
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
 
-        y_fields = {
-            'Comb FL': 'Combined FL (WAT/NED)',
-            'FLS': 'Flow Limitation Score (WAT)',
-            'GI': 'Glasgow Index',
-            'NED RDI': 'Est. RDI (NED)',
-            'BOI': 'Brief Obstruction Index',
-        }
+        self.y_fields = [Field(field_config) for field_config in self.config['y_fields']]
+        y_field_names = [field.name for field in self.y_fields]
+        df[y_field_names] = df[y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
 
-        other_y_fields = {
-            'Usage': 'Usage (AS11)',
-            'AHI': 'AHI (AS11)',
-            'CAI': 'CAI (AS11)',
-            'RDI': 'RDI (AS11)',
-            '95%FL': '95% Flow Limitation (AS11)',
-            'AvgLR': 'Average Leak Rate (AS11)',
-            'IFL': 'IFL Symptom Risk % (WAT/NED/GI)',
-            'NED Mean': 'NED Mean (NED)',
-            'NED RERA': 'RERA/hr (NED)',
-            'GI TH': 'Glasgow Index: Top-Heavy',
-            'GI VA': 'Glasgow Index: Variable Amplitude',
-            'Period': 'Periodicity (WAT)',
-            'Regul': 'Regularity (WAT)',
-            'RHR': 'Resting Heart Rate (Oura)',
-            'HRV': 'Heart Rate Variability (Oura)',
-            'SpO2': 'SpO2 (Oura)',
-        }
-        all_fields = set(y_fields.keys()).union(other_y_fields.keys())
-        numeric_fields = list(all_fields)
-        df[numeric_fields] = df[numeric_fields].apply(pd.to_numeric, errors='coerce').dropna()
+        if self.config['min_pressure'] is not None:
+            df = df[df['Pressure'] >= self.config['min_pressure']]
+        if self.config['max_pressure'] is not None:
+            df = df[df['Pressure'] <= self.config['max_pressure']]
+        if self.config['max_leak_rate'] is not None:
+            df = df[df['AvgLR'] <= self.config['max_leak_rate']]
+        if self.config['min_usage'] is not None:
+            df = df[df['Usage'] >= self.config['min_usage']]
 
-        if min_pressure is not None:
-            df = df[df['Pressure'] >= min_pressure]
-        if max_pressure is not None:
-            df = df[df['Pressure'] <= max_pressure]
-        if max_leak_rate is not None:
-            df = df[df['AvgLR'] <= max_leak_rate]
-        if min_usage is not None:
-            df = df[df['Usage'] >= min_usage]
+        self.df = df
+        self.min_pressure = df['Pressure'].min()
+        self.max_pressure = df['Pressure'].max()
 
-        self.data_by_pressure = defaultdict(list)
-        pressure_counts = defaultdict(int)
-        for _, row in df.iterrows():
-            pressure = row['Pressure']
-            pressure_counts[pressure] += 1
-            self.data_by_pressure[pressure].append(row)
-
-        # pressure histogram TODO refactor to use DataFrame
-        self.min_pressure = min_pressure if min_pressure is not None else min(self.data_by_pressure.keys())
-        self.max_pressure = max_pressure if max_pressure is not None else max(self.data_by_pressure.keys())
-
-        for pressure in range(int(self.min_pressure * 10), 1 + int(self.max_pressure * 10), 2):
-            # populate missing counts
-            pressure_counts[pressure / 10] = 0
-        total_count = 0
-        for pressure, rows in self.data_by_pressure.items():
-            pressure_counts[pressure] = pressure_counts.get(pressure, 0) + len(rows)
-            total_count += len(rows)
-        print(f'N={total_count}')
+    def run(self):
+        print(f'N={len(self.df)}')
         print('Pressure Counts:')
-        for pressure in sorted(pressure_counts.keys()):
-            stripped_suffix = ''
-            if strip_outliers > 0:
-                stripped = int(strip_outliers * pressure_counts[pressure])
-                if stripped > 0:
-                    stripped_suffix = f' (-{stripped * 2} outliers)'
-            print(f'{pressure:.1f}: {pressure_counts[pressure]}{stripped_suffix}')
-        avg_pressure = np.average(list(pressure_counts.keys()), weights=list(pressure_counts.values()))
+        for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
+            print(f'{pressure:.1f}: {count}')
+
+        avg_pressure = self.df['Pressure'].mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
 
         all_correlations = []
 
-        for y_field, title in y_fields.items():
-            # plot based on configuration
-            correl = self.plot(y_field, title, plot = plot, plot_quadratic = plot_quadratic)
-            all_correlations.append((title, correl))
+        for field in self.y_fields:
+            correl = self.plot(field)
+            all_correlations.append((field.name, correl))
 
-        for y_field, title in other_y_fields.items():
-            # never plot
-            correl = self.plot(y_field, title, plot = False)
-            all_correlations.append((y_field, correl))
-
-        if num_correlations:
+        if self.config['num_correlations']:
             print()
-            print(f'Top {num_correlations} correlations with Pressure:')
+            print(f'Top {self.config['num_correlations']} correlations with Pressure:')
             all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-            for title, correl in all_correlations[:num_correlations]:
-                print(f'- {title}: {correl:.3f}')
+            for field, correl in all_correlations[:self.config['num_correlations']]:
+                print(f'- {field}: {correl:.3f}')
 
         # run ElasticNet analysis
-        x_fields = ['Pressure', 'AvgLR'] if include_leak_rate else ['Pressure']
+        x_fields = ['Pressure', 'AvgLR'] if self.config['include_leak_rate'] else ['Pressure']
 
-        X = df[x_fields]
+        X = self.df[x_fields]
         X = StandardScaler().fit_transform(X)
 
-        if alpha is not None:
+        if self.config['alpha'] is not None:
             print()
-            print(f'Non-zero weights for {' + '.join(x_fields)} with alpha {alpha}:')
+            print(f'Non-zero weights for {' + '.join(x_fields)} with alpha {self.config['alpha']}:')
             all_zero = True
-            for key in y_fields.keys():
-                y = df[[key]]
-                model = ElasticNet(alpha=alpha, l1_ratio=1, fit_intercept=True)
+            for field in self.y_fields:
+                y = self.df[[field.name]]
+                model = ElasticNet(alpha=self.config['alpha'], l1_ratio=1, fit_intercept=True)
                 model.fit(X, y)
                 if sum(model.coef_):
                     all_zero = False
-                    print(f'- {key}: Intercept={model.intercept_}, Weights={model.coef_}')
+                    print(f'- {field.name}: Intercept={model.intercept_}, Weights={model.coef_}')
             if all_zero:
                 print('- None')
 
@@ -148,78 +102,40 @@ class Plotter:
     def field_to_filename(field: str):
         return field.lower().replace(' ', '_')
 
-    def plot(self, y_field: str, title: str, plot: Optional[bool] = None, plot_quadratic: Optional[bool] = None) -> float:
-        title = title if title else y_field
+    def plot(self, field: Field) -> float:
+        x = self.df['Pressure']
+        y = self.df[field.name]
+        correl = np.corrcoef(x, y)[0, 1]
+        if field.plot and self.config['plot']:
+            polyline = np.linspace(self.min_pressure, self.max_pressure, 100)
 
-        x = []
-        y = []
-
-        for pressure, rows in self.data_by_pressure.items():
-            values = []
-            for row in rows:
-                if y_field in row:
-                    values.append(row[y_field])
-
-            strip = int(self.outlier * len(values))
-            if strip >= 1:
-                values.sort()
-                values = values[strip:-strip]
-
-            for value in values:
-                x.append(pressure)
-                y.append(value)
-
-        if plot:
             # linear regression
-            coef1 = np.polyfit(x, y, 1)
-            model1 = np.poly1d(coef1)
-            polyline = np.linspace(self.min_pressure, self.max_pressure, len(x))
+            poly1 = Polynomial.fit(x, y, 1)
+            plt.plot(polyline, poly1(polyline), color='blue')
 
             # quadratic regression
-            if plot_quadratic:
-                coef2 = np.polyfit(x, y, 2)
-                a, b, c = coef2
-                model2 = np.poly1d(coef2)
+            if self.config['plot_quadratic']:
+                poly2 = Polynomial.fit(x, y, 2)
+                c, b, a = poly2.convert().coef
 
                 # plot minima or maxima of quadratic regression, if in domain
                 x_extrema = -b / (2 * a)
                 if self.min_pressure <= x_extrema <= self.max_pressure:
                     plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
-                plt.plot(polyline, model2(polyline), color='red')
+                plt.plot(polyline, poly2(polyline), color='red')
 
-            # linear regression
-            plt.plot(polyline, model1(polyline), color='blue')
-
-        correl = np.corrcoef(x, y)[0, 1]
-
-        if plot:
-            # finish plot
             plt.scatter(x, y)
             plt.xlabel(f'Pressure (r = {correl:.2f})')
-            plt.ylabel(y_field)
-            plt.title(title)
+            plt.ylabel(field.name)
+            plt.title(field.title)
             plt.tight_layout()
-            plt.savefig(self.field_to_filename(f'{y_field}.png'), bbox_inches='tight')
+            if self.config['save_plots']:
+                plt.savefig(self.field_to_filename(f'{field.name}.png'), bbox_inches='tight')
             plt.show()
 
         return correl
 
 
 if __name__ == '__main__':
-    with open('config.yaml', 'r') as file:
-        # Use safe_load to avoid executing arbitrary code from the file
-        config = yaml.safe_load(file)
-
-    Plotter(filename=config['filename'],
-            min_pressure=config['min_pressure'],
-            max_pressure=config['max_pressure'],
-            min_usage=config['min_usage'],
-            max_leak_rate=config['max_leak_rate'],
-            alpha=config['alpha'],
-            strip_outliers=config['strip_outliers'],
-            include_leak_rate=config['include_leak_rate'],
-            num_correlations=config['num_correlations'],
-            plot=config['plot'],
-            plot_quadratic=config['plot_quadratic'],
-            )
+    Regression('config.yaml').run()

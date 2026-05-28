@@ -1,11 +1,59 @@
-filename: cpap.csv
-min_pressure: 7.0
-max_pressure: null
-max_leak_rate: 1.5
-min_usage: 6.0
-alpha: 1.0
-strip_outliers: 0.0
-num_correlations: 10
-include_leak_rate: false
-plot: false
-plot_quadratic: false
+filename: cpap.csv # CSV file
+min_pressure: 7.0 # min pressure
+max_pressure: # max pressure
+max_leak_rate: 1.5 # max AvgLR
+min_usage: 6.0 # min usage (hrs)
+num_correlations: 10 # num correlations to display
+alpha: 1 # alpha for ElasticNet regression
+include_leak_rate: false # include leak rate in ElasticNet regression
+plot: true # true to allow plotting if field plot is true
+plot_quadratic: false # include quadratic regression in plots
+save_plots: true # save plots to {column}.png
+y_fields:
+  - name: Comb FL
+    title: Combined FL (WAT/NED)
+    plot: true
+  - name: FLS
+    title: Flow Limitation Score (WAT)
+    plot: true
+  - name: GI
+    title: Glasgow Index
+    plot: true
+  - name: NED RDI
+    title: Est. RDI (NED)
+    plot: true
+  - name: BOI
+    title: Brief Obstruction Index
+    plot: true
+  - name: Usage
+    title: Usage (AS11)
+  - name: AHI
+    title: AHI (AS11)
+  - name: CAI
+    title: CAI (AS11)
+  - name: RDI
+    title: RDI (AS11)
+  - name: 95%FL
+    title: 95% Flow Limitation (AS11)
+  - name: AvgLR
+    title: Average Leak Rate (AS11)
+  - name: IFL
+    title: IFL Symptom Risk % (WAT/NED/GI)
+  - name: NED Mean
+    title: NED Mean (NED)
+  - name: NED RERA
+    title: RERA/hr (NED)
+  - name: GI TH
+    title: 'Glasgow Index: Top-Heavy'
+  - name: GI VA
+    title: 'Glasgow Index: Variable Amplitude'
+  - name: Period
+    title: Periodicity (WAT)
+  - name: Regul
+    title: Regularity (WAT)
+  - name: RHR
+    title: Resting Heart Rate (Oura)
+  - name: HRV
+    title: Heart Rate Variability (Oura)
+  - name: SpO2
+    title: SpO2 (Oura)
