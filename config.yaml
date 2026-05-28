@@ -9,7 +9,7 @@ include_leak_rate: false # include leak rate in ElasticNet regression
 plot: true # true to allow plotting if field plot is true
 plot_quadratic: false # include quadratic regression in plots
 save_plots: true # save plots to {column}.png
-y_fields:
+y_fields: # fields to calculate with optional title for plotting and plot flag to allow plotting if globally enabled
   - name: Comb FL
     title: Combined FL (WAT/NED)
     plot: true
