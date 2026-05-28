@@ -91,14 +91,6 @@ class Regression:
                 print('- None')
 
     @staticmethod
-    def parse_value(value: str) -> float:
-        if ':' in value:
-            # handle usage
-            tokens = value.split(':')
-            return float(tokens[0]) + float(tokens[1]) / 60
-        return float(value)
-
-    @staticmethod
     def field_to_filename(field: str):
         return field.lower().replace(' ', '_')
 
