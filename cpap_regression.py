@@ -47,11 +47,13 @@ class Regression:
         self.df = df
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
+        self.pressure_counts = self.df['Pressure'].value_counts().sort_index().items()
 
     def run(self):
         print(f'N={len(self.df)}')
         print('Pressure Counts:')
-        for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
+
+        for pressure, count in self.pressure_counts:
             print(f'- {pressure:.1f}: {count}')
 
         avg_pressure = self.df['Pressure'].mean()
@@ -60,7 +62,7 @@ class Regression:
         all_correlations = []
 
         for field in self.y_fields:
-            correl = self.plot(field)
+            correl = self.calculate_field(field)
             all_correlations.append((field.name, correl))
 
         if self.config['num_correlations']:
@@ -94,7 +96,7 @@ class Regression:
     def field_to_filename(field: str):
         return field.lower().replace(' ', '_')
 
-    def plot(self, field: Field) -> float:
+    def calculate_field(self, field: Field) -> float:
         x = self.df['Pressure']
         y = self.df[field.name]
         correl = np.corrcoef(x, y)[0, 1]
