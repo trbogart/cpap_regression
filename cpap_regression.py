@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from numpy.polynomial.polynomial import Polynomial
-from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import SGDRegressor
 from sklearn.preprocessing import StandardScaler
 
 
@@ -49,6 +49,12 @@ class Regression:
         self.max_pressure = df['Pressure'].max()
         self.pressure_counts = self.df['Pressure'].value_counts().sort_index().items()
 
+        if self.config['weighted']:
+            pressure_count_map = {pressure: count for pressure, count in self.pressure_counts}
+            self.weights = [1/pressure_count_map[pressure] for pressure in self.df['Pressure']]
+        else:
+            self.weights = [1.0] * len(self.df)
+
     def run(self):
         print(f'N={len(self.df)}')
         print('Pressure Counts:')
@@ -73,19 +79,16 @@ class Regression:
                 print(f'- {field}: {correl:.3f}')
 
         # run ElasticNet analysis
-        x_fields = ['Pressure', 'AvgLR'] if self.config['include_leak_rate'] else ['Pressure']
-
-        X = self.df[x_fields]
-        X = StandardScaler().fit_transform(X)
+        X = StandardScaler().fit_transform(self.df[['Pressure']])
 
         if self.config['alpha'] is not None:
             print()
-            print(f'Non-zero weights for {' + '.join(x_fields)} with alpha {self.config['alpha']}:')
+            print(f'Non-zero weights for Pressure with alpha {self.config['alpha']}:')
             all_zero = True
             for field in self.y_fields:
                 y = self.df[[field.name]]
-                model = ElasticNet(alpha=self.config['alpha'], l1_ratio=1, fit_intercept=True)
-                model.fit(X, y)
+                model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'], l1_ratio=1, fit_intercept=True)
+                model.fit(X, np.ravel(y), sample_weight=self.weights)
                 if sum(model.coef_):
                     all_zero = False
                     print(f'- {field.name}: Intercept={model.intercept_}, Weights={model.coef_}')
@@ -99,17 +102,17 @@ class Regression:
     def calculate_field(self, field: Field) -> float:
         x = self.df['Pressure']
         y = self.df[field.name]
-        correl = np.corrcoef(x, y)[0, 1]
+        correl = self.weighted_correlation(x, y, self.weights)
         if field.plot and self.config['plot']:
             polyline = np.linspace(self.min_pressure, self.max_pressure, 100)
 
             # linear regression
-            poly1 = Polynomial.fit(x, y, 1)
+            poly1 = Polynomial.fit(x, y, 1, w=self.weights)
             plt.plot(polyline, poly1(polyline), color='blue')
 
             # quadratic regression
             if self.config['plot_quadratic']:
-                poly2 = Polynomial.fit(x, y, 2)
+                poly2 = Polynomial.fit(x, y, 2, w=self.weights)
                 c, b, a = poly2.convert().coef
 
                 # plot minima or maxima of quadratic regression, if in domain
@@ -130,6 +133,20 @@ class Regression:
 
         return correl
 
+    @staticmethod
+    def weighted_correlation(x, y, weights):
+        """Calculates the weighted Pearson correlation coefficient."""
+        # Compute weighted means
+        mean_x = np.average(x, weights=weights)
+        mean_y = np.average(y, weights=weights)
+
+        # Compute weighted covariances
+        cov_xx = np.average((x - mean_x) ** 2, weights=weights)
+        cov_yy = np.average((y - mean_y) ** 2, weights=weights)
+        cov_xy = np.average((x - mean_x) * (y - mean_y), weights=weights)
+
+        # Compute correlation
+        return cov_xy / np.sqrt(cov_xx * cov_yy)
 
 if __name__ == '__main__':
     Regression('config.yaml').run()
