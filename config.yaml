@@ -1,11 +1,11 @@
 filename: cpap.csv # CSV file
 seed: 42
 min_pressure: 7 # min pressure
-max_pressure:  # max pressure
+max_pressure: 8 # max pressure
 max_leak_rate: 1.5 # max AvgLR
 min_usage: 6 # min usage (hrs)
 min_sleep: 5.5 # min sleep (hrs)
-min_sleep_efficiency: 0.7 # min ratio between sleep and usage
+min_sleep_efficiency: 0.75 # min ratio between sleep and usage
 num_correlations: 10 # num correlations to display
 alpha: 0.02 # alpha for ElasticNet regression
 l1_ratio: 0.8 # l1_ratio for ElasticNet regression

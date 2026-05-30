@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from numpy.polynomial.polynomial import Polynomial
+from pandas import DataFrame
 from sklearn.linear_model import SGDRegressor
 from sklearn.preprocessing import StandardScaler
 
@@ -32,50 +33,56 @@ class Regression:
         df = df.replace('--', np.nan).dropna()
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
+        df['Efficiency'] = df['Sleep'] / df['Usage']
+        df['RDI'] = df['AHI'] + df['RERA']
 
         self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
         self.y_field_names = [field.name for field in self.y_fields]
         df[self.y_field_names] = df[self.y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
-
         self.dates = set(df['Date'])
 
-        def dates_diff(description):
-            new_dates = set(df['Date'])
-            removed_dates = list(self.dates - new_dates)
-            removed_dates.sort()
-            print(f'Removed {len(self.dates) - len(new_dates)} dates for {description}: {', '.join(removed_dates)}')
-            self.dates = new_dates
+        def filter(df: DataFrame, config: str, field: str) -> DataFrame:
+            threshold = self.config[config]
+            if threshold is None:
+                return df
+            if config.startswith('min_'):
+                filtered_df = df[df[field] >= threshold]
+            elif config.startswith('max_'):
+                filtered_df = df[df[field] <= threshold]
+            else:
+                raise ValueError(f'Invalid config: {config}')
 
-        if self.config['min_pressure'] is not None:
-            df = df[df['Pressure'] >= self.config['min_pressure']]
-            dates_diff('min_pressure')
-        if self.config['max_pressure'] is not None:
-            df = df[df['Pressure'] <= self.config['max_pressure']]
-            dates_diff('max_pressure')
-        if self.config['max_leak_rate'] is not None:
-            df = df[df['AvgLR'] <= self.config['max_leak_rate']]
-            dates_diff('max_leak_rate')
-        if self.config['min_usage'] is not None:
-            df = df[df['Usage'] >= self.config['min_usage']]
-            dates_diff('min_usage')
-        if self.config['min_sleep'] is not None:
-            df = df[df['Sleep'] >= self.config['min_sleep']]
-            dates_diff('min_sleep')
-        if self.config['min_sleep_efficiency'] is not None:
-            df = df[df['Sleep'] / df['Usage'] >= self.config['min_sleep_efficiency']]
-            dates_diff('min_sleep_efficiency')
-        self.df = df
+            new_dates = set(filtered_df['Date'])
+            removed_dates = self.dates - new_dates
+            removed_rows = df[df['Date'].isin(removed_dates)]
+            removed = [f'{row.Date} ({row.Pressure})' for row in removed_rows.itertuples()]
+
+            print(f'Removed {len(self.dates) - len(new_dates)} dates for {config} ({threshold}): {', '.join(removed)}')
+            self.dates = new_dates
+            self.df = filtered_df
+            return filtered_df
+
+        df = filter(df, 'min_pressure', 'Pressure')
+        df = filter(df, 'max_pressure', 'Pressure')
+        df = filter(df, 'max_leak_rate', 'AvgLR')
+        df = filter(df, 'min_usage', 'Usage')
+        df = filter(df, 'min_sleep', 'Sleep')
+        df = filter(df, 'min_sleep_efficiency', 'Efficiency')
+
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
 
         if self.config['weighted']:
-            pressure_counts = self.df['Pressure'].value_counts().items()
+            pressure_counts = df['Pressure'].value_counts().items()
             pressure_count_map = {pressure: count for pressure, count in pressure_counts}
-            self.weights = [1 / pressure_count_map[pressure] for pressure in self.df['Pressure']]
+            self.weights = [1 / pressure_count_map[pressure] for pressure in df['Pressure']]
         else:
-            self.weights = [1.0] * len(self.df)
+            self.weights = [1.0] * len(df)
+
+        self.df = df
 
     def run(self):
+        print()
         print(f'N={len(self.df)}, weighted={self.config['weighted']}')
         print('Pressure Counts:')
         for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
