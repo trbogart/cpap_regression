@@ -29,16 +29,22 @@ class Regression:
             # Use safe_load to avoid executing arbitrary code from the file
             self.config = yaml.safe_load(file)
 
+        self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
+        self.y_field_names = [field.name for field in self.y_fields]
+
         df = pd.read_csv(self.config['filename'])
-        df = df.replace('--', np.nan).dropna()
+        df = df[df['Pressure'].notna()]
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
+
+        to_numeric_fields = list(set(self.y_field_names).union({'AHI', 'RERA'}) - {'Efficiency', 'RDI'})
+        df[to_numeric_fields] = df[to_numeric_fields].apply(pd.to_numeric, errors='coerce')
+        df['RERA'] = pd.to_numeric(df['RERA'])
+        df = df.dropna()
+
         df['Efficiency'] = df['Sleep'] / df['Usage']
         df['RDI'] = df['AHI'] + df['RERA']
 
-        self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
-        self.y_field_names = [field.name for field in self.y_fields]
-        df[self.y_field_names] = df[self.y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
         self.dates = set(df['Date'])
 
         def filter(df: DataFrame, config: str, field: str) -> DataFrame:
@@ -55,15 +61,16 @@ class Regression:
             new_dates = set(filtered_df['Date'])
             removed_dates = self.dates - new_dates
             removed_rows = df[df['Date'].isin(removed_dates)]
-            removed = [f'{row.Date} ({row.Pressure})' for row in removed_rows.itertuples()]
+            removed = [f'{row['Date']} ({row[field]:.2f})' for _, row in removed_rows.iterrows()]
 
-            print(f'Removed {len(self.dates) - len(new_dates)} dates for {config} ({threshold}): {', '.join(removed)}')
+            print(f'Dropped {len(self.dates) - len(new_dates)} rows for {config} ({threshold}): {', '.join(removed)}')
             self.dates = new_dates
             self.df = filtered_df
             return filtered_df
 
         df = filter(df, 'min_pressure', 'Pressure')
         df = filter(df, 'max_pressure', 'Pressure')
+
         df = filter(df, 'max_leak_rate', 'AvgLR')
         df = filter(df, 'min_usage', 'Usage')
         df = filter(df, 'min_sleep', 'Sleep')
