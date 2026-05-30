@@ -57,7 +57,7 @@ class Regression:
             self.weights = [1.0] * len(self.df)
 
     def run(self):
-        print(f'N={len(self.df)}')
+        print(f'N={len(self.df)}, weighted={self.config['weighted']}')
         print('Pressure Counts:')
         for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
             print(f'- {pressure:.1f}: {count}')
@@ -118,13 +118,13 @@ class Regression:
     def elastic_net(self):
         # run ElasticNet analysis
         print()
-        print(f'Non-zero LASSO weights with alpha {self.config['alpha']}:')
-        x = StandardScaler().fit_transform(self.df[self.y_field_names])
+        print(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} and l1_ratio = {self.config['l1_ratio']}:')
+        X = StandardScaler().fit_transform(self.df[self.y_field_names])
         y = self.df['Pressure']
         model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
-                             l1_ratio=1, fit_intercept=True,
+                             l1_ratio=self.config['l1_ratio'], fit_intercept=True,
                              random_state=self.config['seed'])
-        model.fit(x, y, sample_weight=self.weights)
+        model.fit(X, y, sample_weight=self.weights)
         field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
         if field_weights:
             field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
