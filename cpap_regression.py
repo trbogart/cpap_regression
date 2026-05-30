@@ -79,22 +79,7 @@ class Regression:
                 print(f'- {field}: {correl:.3f}')
 
         if self.config['alpha'] is not None:
-            # run ElasticNet analysis
-            print()
-            print(f'Non-zero weights for Pressure with alpha {self.config['alpha']}:')
-            x = StandardScaler().fit_transform(self.df[self.y_field_names])
-            y = self.df['Pressure']
-            model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
-                                 l1_ratio=1, fit_intercept=True,
-                                 random_state=self.config['seed'])
-            model.fit(x, y, sample_weight=self.weights)
-            field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
-            if field_weights:
-                field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
-                for field, weight in field_weights:
-                    print(f'- {field}: {weight:.3f}')
-            else:
-                print('- None')
+            self.elastic_net()
 
     def calculate_field(self, field: Field) -> float:
         x = self.df['Pressure']
@@ -129,6 +114,24 @@ class Regression:
             plt.show()
 
         return correl
+
+    def elastic_net(self):
+        # run ElasticNet analysis
+        print()
+        print(f'Non-zero weights for Pressure with alpha {self.config['alpha']}:')
+        x = StandardScaler().fit_transform(self.df[self.y_field_names])
+        y = self.df['Pressure']
+        model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
+                             l1_ratio=1, fit_intercept=True,
+                             random_state=self.config['seed'])
+        model.fit(x, y, sample_weight=self.weights)
+        field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
+        if field_weights:
+            field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
+            for field, weight in field_weights:
+                print(f'- {field}: {weight:.3f}')
+        else:
+            print('- None')
 
     @staticmethod
     def field_to_filename(field: str):
