@@ -118,7 +118,7 @@ class Regression:
     def elastic_net(self):
         # run ElasticNet analysis
         print()
-        print(f'Non-zero weights for Pressure with alpha {self.config['alpha']}:')
+        print(f'Non-zero LASSO weights with alpha {self.config['alpha']}:')
         x = StandardScaler().fit_transform(self.df[self.y_field_names])
         y = self.df['Pressure']
         model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
