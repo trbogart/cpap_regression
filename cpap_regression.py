@@ -33,8 +33,8 @@ class Regression:
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
 
         self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
-        y_field_names = [field.name for field in self.y_fields]
-        df[y_field_names] = df[y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
+        self.y_field_names = [field.name for field in self.y_fields]
+        df[self.y_field_names] = df[self.y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
 
         if self.config['min_pressure'] is not None:
             df = df[df['Pressure'] >= self.config['min_pressure']]
@@ -78,26 +78,21 @@ class Regression:
             for field, correl in all_correlations[:self.config['num_correlations']]:
                 print(f'- {field}: {correl:.3f}')
 
-        # run ElasticNet analysis
-        X = StandardScaler().fit_transform(self.df[['Pressure']])
-
         if self.config['alpha'] is not None:
+            # run ElasticNet analysis
             print()
             print(f'Non-zero weights for Pressure with alpha {self.config['alpha']}:')
-            field_weights = []
-            for field in self.y_fields:
-                y = self.df[[field.name]]
-                model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
-                                     l1_ratio=1, fit_intercept=True,
-                                     random_state=self.config['seed'])
-                model.fit(X, np.ravel(y), sample_weight=self.weights)
-                if sum(model.coef_):
-                    field_weights.append((field.name, model.coef_[0]))
+            x = StandardScaler().fit_transform(self.df[self.y_field_names])
+            y = self.df['Pressure']
+            model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
+                                 l1_ratio=1, fit_intercept=True,
+                                 random_state=self.config['seed'])
+            model.fit(x, y, sample_weight=self.weights)
+            field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
             if field_weights:
                 field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
                 for field, weight in field_weights:
                     print(f'- {field}: {weight:.3f}')
-
             else:
                 print('- None')
 

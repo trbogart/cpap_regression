@@ -5,7 +5,7 @@ max_pressure: # max pressure
 max_leak_rate: 1.2 # max AvgLR
 min_usage: 6 # min usage (hrs)
 num_correlations: 10 # num correlations to display
-alpha: 1 # alpha for ElasticNet regression
+alpha: 0.02 # alpha for ElasticNet regression
 plot: true # true to enable plotting
 plot_quadratic: true # include quadratic regression in plots
 save_plots: false # save plots to {column}.png
@@ -47,8 +47,10 @@ y_fields: # fields to calculate with optional title for plotting and plot flag t
     title: RERA/hr (NED)
   - name: GI TH
     title: 'Glasgow Index: Top-Heavy'
+    enabled: false
   - name: GI VA
     title: 'Glasgow Index: Variable Amplitude'
+    enabled: false
   - name: Period
     title: Periodicity (WAT)
   - name: Regul
