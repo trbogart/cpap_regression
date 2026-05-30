@@ -84,7 +84,7 @@ class Regression:
         if self.config['alpha'] is not None:
             print()
             print(f'Non-zero weights for Pressure with alpha {self.config['alpha']}:')
-            all_zero = True
+            field_weights = []
             for field in self.y_fields:
                 y = self.df[[field.name]]
                 model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
@@ -92,9 +92,13 @@ class Regression:
                                      random_state=self.config['seed'])
                 model.fit(X, np.ravel(y), sample_weight=self.weights)
                 if sum(model.coef_):
-                    all_zero = False
-                    print(f'- {field.name}: {model.coef_[0]:.3f}')
-            if all_zero:
+                    field_weights.append((field.name, model.coef_[0]))
+            if field_weights:
+                field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
+                for field, weight in field_weights:
+                    print(f'- {field}: {weight:.3f}')
+
+            else:
                 print('- None')
 
     def calculate_field(self, field: Field) -> float:
