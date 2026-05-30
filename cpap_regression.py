@@ -37,7 +37,7 @@ class Regression:
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
 
-        to_numeric_fields = list(set(self.y_field_names).union({'AHI', 'RERA'}) - {'Efficiency', 'RDI'})
+        to_numeric_fields = list(set(self.y_field_names).union({'AHI', 'RERA'}).difference({'Efficiency', 'RDI'}))
         df[to_numeric_fields] = df[to_numeric_fields].apply(pd.to_numeric, errors='coerce')
         df['RERA'] = pd.to_numeric(df['RERA'])
         df = df.dropna()
@@ -46,7 +46,6 @@ class Regression:
         df['RDI'] = df['AHI'] + df['RERA']
 
         self.dates = set(df['Date'])
-
         def filter(df: DataFrame, config: str, field: str) -> DataFrame:
             threshold = self.config[config]
             if threshold is None:
@@ -65,7 +64,6 @@ class Regression:
 
             print(f'Dropped {len(self.dates) - len(new_dates)} rows for {config} ({threshold}): {', '.join(removed)}')
             self.dates = new_dates
-            self.df = filtered_df
             return filtered_df
 
         df = filter(df, 'min_pressure', 'Pressure')
