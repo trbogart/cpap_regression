@@ -31,20 +31,39 @@ class Regression:
         df = pd.read_csv(self.config['filename'])
         df = df.replace('--', np.nan).dropna()
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
+        df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
 
         self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
         self.y_field_names = [field.name for field in self.y_fields]
         df[self.y_field_names] = df[self.y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
 
+        self.dates = set(df['Date'])
+
+        def dates_diff(description):
+            new_dates = set(df['Date'])
+            removed_dates = list(self.dates - new_dates)
+            removed_dates.sort()
+            print(f'Removed {len(self.dates) - len(new_dates)} dates for {description}: {', '.join(removed_dates)}')
+            self.dates = new_dates
+
         if self.config['min_pressure'] is not None:
             df = df[df['Pressure'] >= self.config['min_pressure']]
+            dates_diff('min_pressure')
         if self.config['max_pressure'] is not None:
             df = df[df['Pressure'] <= self.config['max_pressure']]
+            dates_diff('max_pressure')
         if self.config['max_leak_rate'] is not None:
             df = df[df['AvgLR'] <= self.config['max_leak_rate']]
+            dates_diff('max_leak_rate')
         if self.config['min_usage'] is not None:
             df = df[df['Usage'] >= self.config['min_usage']]
-
+            dates_diff('min_usage')
+        if self.config['min_sleep'] is not None:
+            df = df[df['Sleep'] >= self.config['min_sleep']]
+            dates_diff('min_sleep')
+        if self.config['min_sleep_efficiency'] is not None:
+            df = df[df['Sleep'] / df['Usage'] >= self.config['min_sleep_efficiency']]
+            dates_diff('min_sleep_efficiency')
         self.df = df
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
