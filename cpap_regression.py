@@ -47,19 +47,18 @@ class Regression:
         self.df = df
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
-        self.pressure_counts = self.df['Pressure'].value_counts().sort_index().items()
 
         if self.config['weighted']:
-            pressure_count_map = {pressure: count for pressure, count in self.pressure_counts}
-            self.weights = [1/pressure_count_map[pressure] for pressure in self.df['Pressure']]
+            pressure_counts = self.df['Pressure'].value_counts().items()
+            pressure_count_map = {pressure: count for pressure, count in pressure_counts}
+            self.weights = [1 / pressure_count_map[pressure] for pressure in self.df['Pressure']]
         else:
             self.weights = [1.0] * len(self.df)
 
     def run(self):
         print(f'N={len(self.df)}')
         print('Pressure Counts:')
-
-        for pressure, count in self.pressure_counts:
+        for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
             print(f'- {pressure:.1f}: {count}')
 
         avg_pressure = self.df['Pressure'].mean()
@@ -87,17 +86,15 @@ class Regression:
             all_zero = True
             for field in self.y_fields:
                 y = self.df[[field.name]]
-                model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'], l1_ratio=1, fit_intercept=True)
+                model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
+                                     l1_ratio=1, fit_intercept=True,
+                                     random_state=self.config['seed'])
                 model.fit(X, np.ravel(y), sample_weight=self.weights)
                 if sum(model.coef_):
                     all_zero = False
-                    print(f'- {field.name}: Intercept={model.intercept_}, Weights={model.coef_}')
+                    print(f'- {field.name}: {model.coef_[0]:.3f}')
             if all_zero:
                 print('- None')
-
-    @staticmethod
-    def field_to_filename(field: str):
-        return field.lower().replace(' ', '_')
 
     def calculate_field(self, field: Field) -> float:
         x = self.df['Pressure']
@@ -134,6 +131,10 @@ class Regression:
         return correl
 
     @staticmethod
+    def field_to_filename(field: str):
+        return field.lower().replace(' ', '_')
+
+    @staticmethod
     def weighted_correlation(x, y, weights):
         """Calculates the weighted Pearson correlation coefficient."""
         # Compute weighted means
@@ -147,6 +148,7 @@ class Regression:
 
         # Compute correlation
         return cov_xy / np.sqrt(cov_xx * cov_yy)
+
 
 if __name__ == '__main__':
     Regression('config.yaml').run()
