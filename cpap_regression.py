@@ -19,6 +19,7 @@ class Field:
         self.name = field_config['name']
         self.title = field_config.get('title', self.name)
         self.plot = field_config['plot'] if 'plot' in field_config else False
+        self.enabled = field_config['enabled'] if 'enabled' in field_config else True
 
 
 class Regression:
@@ -31,7 +32,7 @@ class Regression:
         df = df.replace('--', np.nan).dropna()
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
 
-        self.y_fields = [Field(field_config) for field_config in self.config['y_fields']]
+        self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
         y_field_names = [field.name for field in self.y_fields]
         df[y_field_names] = df[y_field_names].apply(pd.to_numeric, errors='coerce').dropna()
 
