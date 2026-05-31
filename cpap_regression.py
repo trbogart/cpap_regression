@@ -107,11 +107,17 @@ class Regression:
             correl = self._calculate_field(field)
             all_correlations.append((field.name, correl))
 
-        if self.config['num_correlations']:
-            print()
-            print(f'Top {self.config['num_correlations']} correlations with Pressure:')
+        if self.config['num_correlations'] is not None:
             all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-            for field, correl in all_correlations[:self.config['num_correlations']]:
+
+            print()
+            if self.config['num_correlations'] == 0:
+                print(f'Correlations with Pressure:')
+            else:
+                print(f'Top {self.config['num_correlations']} correlations with Pressure:')
+                all_correlations = all_correlations[:self.config['num_correlations']]
+
+            for field, correl in all_correlations:
                 print(f'- {field}: {correl:.3f}')
 
         if self.config['alpha'] is not None:

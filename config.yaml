@@ -6,7 +6,7 @@ max_leak_rate: 1.6 # max AvgLR
 min_usage: 6.0 # min usage (hrs)
 min_sleep: 5.5 # min sleep (hrs)
 min_sleep_efficiency: 0.75 # min ratio between sleep and usage
-num_correlations: 10 # num correlations to display
+num_correlations: 0 # num correlations to display (0 for all, null for none)
 alpha: 0.02 # alpha for ElasticNet regression
 l1_ratio: 1.0 # l1_ratio for ElasticNet regression
 plot: true # true to enable plotting
