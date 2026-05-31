@@ -44,7 +44,7 @@ class Regression:
 
         self.dates = set(df['Date'])
 
-        def filter(df: DataFrame, config: str, field: str) -> DataFrame:
+        def filter_values(df: DataFrame, config: str, field: str) -> DataFrame:
             threshold = self.config[config]
             if threshold is None:
                 return df
@@ -53,7 +53,7 @@ class Regression:
             elif config.startswith('max_'):
                 filtered_df = df[df[field] <= threshold]
             else:
-                raise ValueError(f'Invalid config: {config}')
+                raise ValueError(f'Invalid config name: {config}')
 
             new_dates = set(filtered_df['Date'])
             removed_dates = self.dates - new_dates
@@ -65,13 +65,13 @@ class Regression:
             self.dates = new_dates
             return filtered_df
 
-        df = filter(df, 'min_pressure', 'Pressure')
-        df = filter(df, 'max_pressure', 'Pressure')
+        df = filter_values(df, 'min_pressure', 'Pressure')
+        df = filter_values(df, 'max_pressure', 'Pressure')
 
-        df = filter(df, 'max_leak_rate', 'AvgLR')
-        df = filter(df, 'min_usage', 'Usage')
-        df = filter(df, 'min_sleep', 'Sleep')
-        df = filter(df, 'min_sleep_efficiency', 'Efficiency')
+        df = filter_values(df, 'max_leak_rate', 'AvgLR')
+        df = filter_values(df, 'min_usage', 'Usage')
+        df = filter_values(df, 'min_sleep', 'Sleep')
+        df = filter_values(df, 'min_sleep_efficiency', 'Efficiency')
 
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
