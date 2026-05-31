@@ -35,6 +35,7 @@ class Regression:
         df = pd.read_csv(self.config['filename'])
         df['Pressure'] = pd.to_numeric(df['Pressure'], errors='coerce')
         df = df.dropna()
+        df = df.sort_values(by='Date')
 
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
