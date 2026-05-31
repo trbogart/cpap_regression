@@ -33,14 +33,11 @@ class Regression:
         self.y_field_names = [field.name for field in self.y_fields]
 
         df = pd.read_csv(self.config['filename'])
-        df = df[df['Pressure'].notna()]
+        df['Pressure'] = pd.to_numeric(df['Pressure'], errors='coerce')
+        df = df.dropna()
+
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
-
-        to_numeric_fields = list(set(self.y_field_names).union({'AHI', 'RERA'}).difference({'Efficiency', 'RDI'}))
-        df[to_numeric_fields] = df[to_numeric_fields].apply(pd.to_numeric, errors='coerce')
-        df['RERA'] = pd.to_numeric(df['RERA'])
-        df = df.dropna()
 
         df['Efficiency'] = df['Sleep'] / df['Usage']
         df['RDI'] = df['AHI'] + df['RERA']
