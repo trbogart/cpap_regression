@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,42 +38,15 @@ class Regression:
         df = df.dropna()
         df = df.sort_values(by='Date')
 
+        # convert time fields from H:MM to float
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
 
+        # calculated fields
         df['Efficiency'] = df['Sleep'] / df['Usage']
         df['RDI'] = df['AHI'] + df['RERA']
 
-        self.dates = set(df['Date'])
-
-        def filter_values(df: DataFrame, config: str, field: str) -> DataFrame:
-            threshold = self.config[config]
-            if threshold is None:
-                return df
-            if config.startswith('min_'):
-                filtered_df = df[df[field] >= threshold]
-            elif config.startswith('max_'):
-                filtered_df = df[df[field] <= threshold]
-            else:
-                raise ValueError(f'Invalid config name: {config}')
-
-            new_dates = set(filtered_df['Date'])
-            removed_dates = self.dates - new_dates
-            removed_rows = df[df['Date'].isin(removed_dates)]
-            removed = [f'{row['Date']} ({row[field]:.2f})' for _, row in removed_rows.iterrows()]
-
-            print(f'Dropped {len(self.dates) - len(new_dates)} rows for '
-                  f'{config.replace('_', ' ')} ({threshold}): {', '.join(removed)}')
-            self.dates = new_dates
-            return filtered_df
-
-        df = filter_values(df, 'min_pressure', 'Pressure')
-        df = filter_values(df, 'max_pressure', 'Pressure')
-
-        df = filter_values(df, 'max_leak_rate', 'AvgLR')
-        df = filter_values(df, 'min_usage', 'Usage')
-        df = filter_values(df, 'min_sleep', 'Sleep')
-        df = filter_values(df, 'min_sleep_efficiency', 'Efficiency')
+        df = self._filter(df)
 
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
@@ -85,6 +59,36 @@ class Regression:
             self.weights = [1.0] * len(df)
 
         self.df = df
+
+    def _filter(self, df: DataFrame) -> DataFrame:
+        dates = set(df['Date'])
+        df, dates = self._filter_column(df, dates, 'min_pressure', 'Pressure')
+        df, dates = self._filter_column(df, dates, 'max_pressure', 'Pressure')
+        df, dates = self._filter_column(df, dates, 'max_leak_rate', 'AvgLR')
+        df, dates = self._filter_column(df, dates, 'min_usage', 'Usage')
+        df, dates = self._filter_column(df, dates, 'min_sleep', 'Sleep')
+        df, dates = self._filter_column(df, dates, 'min_sleep_efficiency', 'Efficiency')
+        return df
+
+    def _filter_column(self, df: DataFrame, dates: set, config: str, field: str) -> Tuple[DataFrame, set]:
+        threshold = self.config[config]
+        if threshold is None:
+            return df, dates
+        if config.startswith('min_'):
+            filtered_df = df[df[field] >= threshold]
+        elif config.startswith('max_'):
+            filtered_df = df[df[field] <= threshold]
+        else:
+            raise ValueError(f'Invalid config name: {config}')
+
+        new_dates = set(filtered_df['Date'])
+        removed_dates = dates - new_dates
+        removed_rows = df[df['Date'].isin(removed_dates)]
+        removed = [f'{row['Date']} ({row[field]:.2f})' for _, row in removed_rows.iterrows()]
+
+        print(f'Dropped {len(dates) - len(new_dates)} rows for '
+              f'{config.replace('_', ' ')} ({threshold}): {', '.join(removed)}')
+        return filtered_df, new_dates
 
     def run(self):
         print()
@@ -100,7 +104,7 @@ class Regression:
         all_correlations = []
 
         for field in self.y_fields:
-            correl = self.calculate_field(field)
+            correl = self._calculate_field(field)
             all_correlations.append((field.name, correl))
 
         if self.config['num_correlations']:
@@ -111,12 +115,12 @@ class Regression:
                 print(f'- {field}: {correl:.3f}')
 
         if self.config['alpha'] is not None:
-            self.elastic_net()
+            self._elastic_net()
 
-    def calculate_field(self, field: Field) -> float:
+    def _calculate_field(self, field: Field) -> float:
         x = self.df['Pressure']
         y = self.df[field.name]
-        correl = self.weighted_correlation(x, y, self.weights)
+        correl = self._weighted_correlation(x, y, self.weights)
         if field.plot and self.config['plot']:
             polyline = np.linspace(self.min_pressure, self.max_pressure, 100)
 
@@ -142,12 +146,12 @@ class Regression:
             plt.title(field.title)
             plt.tight_layout()
             if self.config['save_plots']:
-                plt.savefig(self.field_to_filename(f'{field.name}.png'), bbox_inches='tight')
+                plt.savefig(self._field_filename(f'{field.name}.png'), bbox_inches='tight')
             plt.show()
 
         return correl
 
-    def elastic_net(self):
+    def _elastic_net(self):
         # run ElasticNet analysis
         print()
         print(
@@ -167,11 +171,11 @@ class Regression:
             print('- None')
 
     @staticmethod
-    def field_to_filename(field: str):
+    def _field_filename(field: str):
         return field.lower().replace(' ', '_')
 
     @staticmethod
-    def weighted_correlation(x, y, weights):
+    def _weighted_correlation(x, y, weights):
         """Calculates the weighted Pearson correlation coefficient."""
         # Compute weighted means
         mean_x = np.average(x, weights=weights)

@@ -36,7 +36,6 @@ y_fields: # fields to calculate with optional title for ploting and plot flag to
     title: AHI (AS11)
   - name: CAI
     title: CAI (AS11)
-    plot: true
   - name: RDI
     title: RDI (AS11)
   - name: 95%FL
