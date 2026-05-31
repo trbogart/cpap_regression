@@ -43,6 +43,7 @@ class Regression:
         df['RDI'] = df['AHI'] + df['RERA']
 
         self.dates = set(df['Date'])
+
         def filter(df: DataFrame, config: str, field: str) -> DataFrame:
             threshold = self.config[config]
             if threshold is None:
@@ -59,7 +60,8 @@ class Regression:
             removed_rows = df[df['Date'].isin(removed_dates)]
             removed = [f'{row['Date']} ({row[field]:.2f})' for _, row in removed_rows.iterrows()]
 
-            print(f'Dropped {len(self.dates) - len(new_dates)} rows for {config} ({threshold}): {', '.join(removed)}')
+            print(f'Dropped {len(self.dates) - len(new_dates)} rows for '
+                  f'{config.replace('_', ' ')} ({threshold}): {', '.join(removed)}')
             self.dates = new_dates
             return filtered_df
 
@@ -87,8 +89,9 @@ class Regression:
         print()
         print(f'N={len(self.df)}, weighted={self.config['weighted']}')
         print('Pressure Counts:')
-        for pressure, count in self.df['Pressure'].value_counts().sort_index().items():
-            print(f'- {pressure:.1f}: {count}')
+        for pressure in sorted(self.df['Pressure'].unique()):
+            dates = self.df[self.df['Pressure'] == pressure]['Date']
+            print(f'- {pressure:.1f} ({len(dates)}): {', '.join(dates)}')
 
         avg_pressure = self.df['Pressure'].mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
@@ -146,7 +149,8 @@ class Regression:
     def elastic_net(self):
         # run ElasticNet analysis
         print()
-        print(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} and l1_ratio = {self.config['l1_ratio']}:')
+        print(
+            f'Non-zero ElasticNet weights with alpha {self.config['alpha']} and l1_ratio = {self.config['l1_ratio']}:')
         X = StandardScaler().fit_transform(self.df[self.y_field_names])
         y = self.df['Pressure']
         model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
