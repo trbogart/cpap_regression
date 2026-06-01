@@ -6,7 +6,7 @@ import pandas as pd
 import yaml
 from numpy.polynomial.polynomial import Polynomial
 from pandas import DataFrame
-from sklearn.linear_model import SGDRegressor
+from sklearn.linear_model import SGDRegressor, BayesianRidge
 from sklearn.preprocessing import StandardScaler
 
 
@@ -132,24 +132,30 @@ class Regression:
         avg_pressure = self.pressure.mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
 
-        all_correlations = []
+        # Correlation and linear regression
+        all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
+        all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
+        print()
+        if self.config['num_correlations'] == 0:
+            print(f'Correlations with Pressure:')
+        else:
+            print(f'Top {self.config['num_correlations']} correlations with Pressure:')
+            all_correlations = all_correlations[:self.config['num_correlations']]
+        for field, weight in all_correlations:
+            print(f'- {field}: {weight:.3f}')
 
-        for field in self.y_fields:
-            correl = self._calculate_field(field)
-            all_correlations.append((field.name, correl))
-
-        if self.config['num_correlations'] is not None:
-            all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-
+        # Bayesian regression
+        if self.config['bayesian']:
+            all_bayesian_weights = self._bayesian()
+            all_bayesian_weights.sort(key=lambda x: abs(x[1]), reverse=True)
             print()
             if self.config['num_correlations'] == 0:
-                print(f'Correlations with Pressure:')
+                print(f'Bayesian weights with Pressure:')
             else:
-                print(f'Top {self.config['num_correlations']} correlations with Pressure:')
-                all_correlations = all_correlations[:self.config['num_correlations']]
-
-            for field, correl in all_correlations:
-                print(f'- {field}: {correl:.3f}')
+                print(f'Top {self.config['num_correlations']} Bayesian weights with Pressure:')
+                all_bayesian_weights = all_bayesian_weights[:self.config['num_correlations']]
+            for field, weight in all_bayesian_weights:
+                print(f'- {field}: {weight:.3f}')
 
         if self.config['alpha'] is not None:
             self._elastic_net()
@@ -163,7 +169,7 @@ class Regression:
             return 'weighted by usage'
         return 'not weighted'
 
-    def _calculate_field(self, field: Field) -> float:
+    def _linear(self, field: Field) -> float:
         x = self.pressure
         y = self.df[field.name]
         correl = self._weighted_correlation(x, y, self.df['Weight'])
@@ -202,6 +208,7 @@ class Regression:
         print()
         print(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} '
               f'and l1_ratio = {self.config['l1_ratio']}:')
+        # inverse
         X = StandardScaler().fit_transform(self.df[self.y_field_names])
         y = self.pressure
         model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
@@ -215,6 +222,13 @@ class Regression:
                 print(f'- {field}: {weight:.3f}')
         else:
             print('- None')
+
+    def _bayesian(self) -> list[tuple[str, float]]:
+        X = StandardScaler().fit_transform(self.df[self.y_field_names])
+        y = self.pressure
+        model = BayesianRidge()
+        model.fit(X, y)
+        return [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_)]
 
     @staticmethod
     def _field_filename(field: str):
