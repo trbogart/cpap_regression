@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,6 +24,7 @@ class Field:
 
 
 class Regression:
+    # noinspection PyArgumentList
     def __init__(self, config_filename: str):
         with open('config.yaml', 'r') as file:
             # Use safe_load to avoid executing arbitrary code from the file
@@ -81,17 +81,17 @@ class Regression:
         df, dates = self._filter_column(df, dates, 'Efficiency', 'min_sleep_efficiency')
         return df
 
-    def _filter_column(self, df: DataFrame, dates: set, field: str, config: str | None = None) -> Tuple[DataFrame, set]:
-        if config is not None:
-            threshold = self.config[config]
+    def _filter_column(self, df: DataFrame, dates: set, field: str, config_key: str | None = None) -> tuple[DataFrame, set]:
+        if config_key is not None:
+            threshold = self.config[config_key]
             if threshold is None:
                 return df, dates
-            if config.startswith('min_'):
+            if config_key.startswith('min_'):
                 filtered_df = df[df[field] >= threshold]
-            elif config.startswith('max_'):
+            elif config_key.startswith('max_'):
                 filtered_df = df[df[field] <= threshold]
             else:
-                raise ValueError(f'Invalid config name: {config}')
+                raise ValueError(f'Invalid config name: {config_key}')
         else:
             threshold = 0.0
             filtered_df = df[df[field] > threshold]
@@ -101,9 +101,9 @@ class Regression:
         removed_rows = df[df['Date'].isin(removed_dates)]
 
         num_removed = len(dates) - len(new_dates)
-        if config is not None:
+        if config_key is not None:
             print(f'Dropped {num_removed} rows for '
-                  f'{config.replace('_', ' ')}: {threshold}:')
+                  f'{config_key.replace('_', ' ')}: {threshold}:')
         elif num_removed > 0:
             # for weight
             print(f'Dropped {num_removed} rows with zero {field}:')
@@ -126,8 +126,11 @@ class Regression:
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            print(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
-                  f'{total_weight:.2f} total weight): {', '.join(dates)}')
+            line = f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs'
+            if total_weight != len(dates):
+                line +=  f', {total_weight:.2f} total weight)'
+            line += f'): {', '.join(dates)}'
+            print(line)
 
         avg_pressure = self.pressure.mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
