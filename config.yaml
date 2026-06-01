@@ -7,12 +7,12 @@ min_usage: 6.0 # min Usage (hrs)
 min_sleep: 5.5 # min Sleep (hrs)
 min_sleep_efficiency: 0.75 # min ratio between Sleep and Usage
 num_correlations: 0 # num correlations to display (0 for all, null for none)
-alpha: 0.02 # alpha for ElasticNet regression
+alpha: 0.05 # alpha for ElasticNet regression
 l1_ratio: 1.0 # l1_ratio for ElasticNet regression
 plot: true # true to enable plotting
 plot_quadratic: false # include quadratic regression in plots
 save_plots: false # save plots to {column}.png
-weighted: true # true to use inverse frequency weighting
+weighted: false # true to use inverse frequency weighting
 y_fields: # fields to calculate with optional title for plotting and plot flag to allow plotting if globally enabled
   - name: Comb FL
     title: Combined FL (WAT/NED)
