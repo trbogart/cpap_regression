@@ -109,7 +109,7 @@ class Regression:
             print(f'Dropped {num_removed} rows with zero {field}:')
         if num_removed > 0:
             for _, row in removed_rows.iterrows():
-                line = f'- {row['Date']}: Pressure={row[field]:.1f}'
+                line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
                 if field not in {'Pressure', 'Weight'}:
                     line += f', {field}={row[field]:.2f}'
                 print(line)
