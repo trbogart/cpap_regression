@@ -52,7 +52,7 @@ class Regression:
         df['Efficiency'] = df['Sleep'] / df['Usage']
         df['RDI'] = df['AHI'] + df['RERA']
 
-        # filter by config or by zero weight
+        # filter by config or by zero weight (possible with manual weighting)
         df = self._filter(df)
 
         self.pressure = df['Pressure']
@@ -126,11 +126,8 @@ class Regression:
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            line = f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs'
-            if total_weight != len(dates):
-                line +=  f', {total_weight:.2f} total weight)'
-            line += f'): {', '.join(dates)}'
-            print(line)
+            print(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
+                  f'{total_weight:.2f} total weight): {', '.join(dates)})')
 
         avg_pressure = self.pressure.mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
@@ -201,7 +198,7 @@ class Regression:
         return correl
 
     def _elastic_net(self):
-        # run ElasticNet analysis
+        # run inverse ElasticNet analysis
         print()
         print(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} '
               f'and l1_ratio = {self.config['l1_ratio']}:')
