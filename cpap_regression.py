@@ -34,11 +34,17 @@ class Regression:
         self.y_field_names = [field.name for field in self.y_fields]
 
         df = pd.read_csv(self.config['filename'])
+
+        # pressure field can be empty or contain an exclusion note
         df['Pressure'] = pd.to_numeric(df['Pressure'], errors='coerce')
+        
+        # weight field is 1 by default (mostly intended for manual exclusion)
+        df['Weight'] = df['Weight'].fillna(1)
+
         df = df.dropna()
         df = df.sort_values(by='Date')
 
-        # convert time fields from H:MM to float
+        # convert time fields from H:MM to float hours
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
 
@@ -46,55 +52,68 @@ class Regression:
         df['Efficiency'] = df['Sleep'] / df['Usage']
         df['RDI'] = df['AHI'] + df['RERA']
 
+        # filter by config or by zero weight
         df = self._filter(df)
 
-        self.min_pressure = df['Pressure'].min()
-        self.max_pressure = df['Pressure'].max()
+        self.pressure = df['Pressure']
+        self.min_pressure = self.pressure.min()
+        self.max_pressure = self.pressure.max()
 
+        # adjust weights based on config
         if self.config['weight_frequency']:
-            pressure_counts = df['Pressure'].value_counts().items()
+            pressure_counts = self.pressure.value_counts().items()
             pressure_count_map = {pressure: count for pressure, count in pressure_counts}
-            self.weights = [1 / pressure_count_map[pressure] for pressure in df['Pressure']]
-        else:
-            self.weights = [1.0] * len(df)
+            df['Weight'] /= [pressure_count_map[pressure] for pressure in self.pressure]
 
         if self.config['weight_usage']:
-            self.weights *= df['Usage']
+            df['Weight'] *= df['Usage']
 
         self.df = df
 
     def _filter(self, df: DataFrame) -> DataFrame:
         dates = set(df['Date'])
-        df, dates = self._filter_column(df, dates, 'min_pressure', 'Pressure')
-        df, dates = self._filter_column(df, dates, 'max_pressure', 'Pressure')
-        df, dates = self._filter_column(df, dates, 'max_leak_rate', 'AvgLR')
-        df, dates = self._filter_column(df, dates, 'min_usage', 'Usage')
-        df, dates = self._filter_column(df, dates, 'min_sleep', 'Sleep')
-        df, dates = self._filter_column(df, dates, 'min_sleep_efficiency', 'Efficiency')
+        df, dates = self._filter_column(df, dates, 'Weight')  # filter zero weights
+        df, dates = self._filter_column(df, dates, 'Pressure', 'min_pressure')
+        df, dates = self._filter_column(df, dates, 'Pressure', 'max_pressure')
+        df, dates = self._filter_column(df, dates, 'AvgLR', 'max_leak_rate')
+        df, dates = self._filter_column(df, dates, 'Usage', 'min_usage')
+        df, dates = self._filter_column(df, dates, 'Sleep', 'min_sleep')
+        df, dates = self._filter_column(df, dates, 'Efficiency', 'min_sleep_efficiency')
         return df
 
-    def _filter_column(self, df: DataFrame, dates: set, config: str, field: str) -> Tuple[DataFrame, set]:
-        threshold = self.config[config]
-        if threshold is None:
-            return df, dates
-        if config.startswith('min_'):
-            filtered_df = df[df[field] >= threshold]
-        elif config.startswith('max_'):
-            filtered_df = df[df[field] <= threshold]
+    def _filter_column(self, df: DataFrame, dates: set, field: str, config: str | None = None) -> Tuple[DataFrame, set]:
+        if config is not None:
+            threshold = self.config[config]
+            if threshold is None:
+                return df, dates
+            if config.startswith('min_'):
+                filtered_df = df[df[field] >= threshold]
+            elif config.startswith('max_'):
+                filtered_df = df[df[field] <= threshold]
+            else:
+                raise ValueError(f'Invalid config name: {config}')
         else:
-            raise ValueError(f'Invalid config name: {config}')
+            threshold = 0.0
+            filtered_df = df[df[field] > threshold]
 
         new_dates = set(filtered_df['Date'])
         removed_dates = dates - new_dates
         removed_rows = df[df['Date'].isin(removed_dates)]
-        if field == 'Pressure':
-            removed = [f'{row['Date']} (pr {row[field]:.1f})' for _, row in removed_rows.iterrows()]
-        else:
-            removed = [f'{row['Date']} (pr {row[field]:.1f}, val {row[field]:.2f})' for _, row in removed_rows.iterrows()]
 
+        num_removed = len(dates) - len(new_dates)
+        if config is not None:
+            print(f'Dropped {num_removed} rows for '
+                  f'{config.replace('_', ' ')}: {threshold}:')
+        elif num_removed > 0:
+            # for weight
+            print(f'Dropped {num_removed} rows with zero {field}:')
+        if num_removed > 0:
+            for _, row in removed_rows.iterrows():
+                line = f'- {row['Date']}: Pressure={row[field]:.1f}'
+                if field not in {'Pressure', 'Weight'}:
+                    line += f', {field}={row[field]:.2f}'
+                print(line)
 
-        print(f'Dropped {len(dates) - len(new_dates)} rows for '
-              f'{config.replace('_', ' ')} ({threshold}): {', '.join(removed)}')
         return filtered_df, new_dates
 
     def run(self):
@@ -102,13 +121,15 @@ class Regression:
 
         print(f'N={len(self.df)}, {self._weighted_by()}')
         print('Pressure Counts:')
-        for pressure in sorted(self.df['Pressure'].unique()):
-            data_for_pressure = self.df[self.df['Pressure'] == pressure]
+        for pressure in sorted(self.pressure.unique()):
+            data_for_pressure = self.df[self.pressure == pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
-            print(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs): {', '.join(dates)}')
+            total_weight = data_for_pressure['Weight'].sum()
+            print(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
+                  f'{total_weight:.2f} total weight): {', '.join(dates)}')
 
-        avg_pressure = self.df['Pressure'].mean()
+        avg_pressure = self.pressure.mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
 
         all_correlations = []
@@ -143,19 +164,19 @@ class Regression:
         return 'not weighted'
 
     def _calculate_field(self, field: Field) -> float:
-        x = self.df['Pressure']
+        x = self.pressure
         y = self.df[field.name]
-        correl = self._weighted_correlation(x, y, self.weights)
+        correl = self._weighted_correlation(x, y, self.df['Weight'])
         if field.plot and self.config['plot']:
             polyline = np.linspace(self.min_pressure, self.max_pressure, 100)
 
             # linear regression
-            poly1 = Polynomial.fit(x, y, 1, w=self.weights)
+            poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
             plt.plot(polyline, poly1(polyline), color='blue')
 
             # quadratic regression
             if self.config['plot_quadratic']:
-                poly2 = Polynomial.fit(x, y, 2, w=self.weights)
+                poly2 = Polynomial.fit(x, y, 2, w=self.df['Weight'])
                 c, b, a = poly2.convert().coef
 
                 # plot minima or maxima of quadratic regression, if in domain
@@ -179,14 +200,14 @@ class Regression:
     def _elastic_net(self):
         # run ElasticNet analysis
         print()
-        print(
-            f'Non-zero ElasticNet weights with alpha {self.config['alpha']} and l1_ratio = {self.config['l1_ratio']}:')
+        print(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} '
+              f'and l1_ratio = {self.config['l1_ratio']}:')
         X = StandardScaler().fit_transform(self.df[self.y_field_names])
-        y = self.df['Pressure']
+        y = self.pressure
         model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
                              l1_ratio=self.config['l1_ratio'], fit_intercept=True,
                              random_state=self.config['seed'])
-        model.fit(X, y, sample_weight=self.weights)
+        model.fit(X, y, sample_weight=self.df['Weight'])
         field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
         if field_weights:
             field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
