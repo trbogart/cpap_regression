@@ -51,12 +51,15 @@ class Regression:
         self.min_pressure = df['Pressure'].min()
         self.max_pressure = df['Pressure'].max()
 
-        if self.config['weighted']:
+        if self.config['weight_frequency']:
             pressure_counts = df['Pressure'].value_counts().items()
             pressure_count_map = {pressure: count for pressure, count in pressure_counts}
             self.weights = [1 / pressure_count_map[pressure] for pressure in df['Pressure']]
         else:
             self.weights = [1.0] * len(df)
+
+        if self.config['weight_usage']:
+            self.weights *= df['Usage']
 
         self.df = df
 
@@ -84,7 +87,11 @@ class Regression:
         new_dates = set(filtered_df['Date'])
         removed_dates = dates - new_dates
         removed_rows = df[df['Date'].isin(removed_dates)]
-        removed = [f'{row['Date']} ({row[field]:.2f})' for _, row in removed_rows.iterrows()]
+        if field == 'Pressure':
+            removed = [f'{row['Date']} (pr {row[field]:.1f})' for _, row in removed_rows.iterrows()]
+        else:
+            removed = [f'{row['Date']} (pr {row[field]:.1f}, val {row[field]:.2f})' for _, row in removed_rows.iterrows()]
+
 
         print(f'Dropped {len(dates) - len(new_dates)} rows for '
               f'{config.replace('_', ' ')} ({threshold}): {', '.join(removed)}')
@@ -92,11 +99,14 @@ class Regression:
 
     def run(self):
         print()
-        print(f'N={len(self.df)}, weighted={self.config['weighted']}')
+
+        print(f'N={len(self.df)}, {self._weighted_by()}')
         print('Pressure Counts:')
         for pressure in sorted(self.df['Pressure'].unique()):
-            dates = self.df[self.df['Pressure'] == pressure]['Date']
-            print(f'- {pressure:.1f} ({len(dates)}): {', '.join(dates)}')
+            data_for_pressure = self.df[self.df['Pressure'] == pressure]
+            dates = data_for_pressure['Date']
+            total_usage = data_for_pressure['Usage'].sum()
+            print(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs): {', '.join(dates)}')
 
         avg_pressure = self.df['Pressure'].mean()
         print(f'Average Pressure: {avg_pressure :.3f}')
@@ -122,6 +132,15 @@ class Regression:
 
         if self.config['alpha'] is not None:
             self._elastic_net()
+
+    def _weighted_by(self) -> str:
+        if self.config['weight_frequency']:
+            if self.config['weight_usage']:
+                return 'weighted by inverse frequency and usage'
+            return 'weighted by inverse frequency'
+        if self.config['weight_usage']:
+            return 'weighted by usage'
+        return 'not weighted'
 
     def _calculate_field(self, field: Field) -> float:
         x = self.df['Pressure']
