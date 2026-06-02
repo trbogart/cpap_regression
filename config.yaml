@@ -8,9 +8,10 @@ min_usage: 6.0 # min Usage (hrs)
 min_sleep: 5.5 # min Sleep (hrs)
 min_sleep_efficiency: 0.75 # min ratio between Sleep and Usage
 num_correlations: 0 # num correlations to display (0 for all)
-alpha: 0.05 # alpha for inverse ElasticNet regression (null to disable)
+alpha: 0.2 # alpha for ElasticNet regression (null to disable)
 l1_ratio: 1.0 # l1_ratio for ElasticNet regression
-bayesian: false # perform an inverse Bayesian ridge regression
+bayesian: true # perform Bayesian ridge regression
+min_bayesian_weight: 0.1 # minimum Bayesian weight sum to print
 plot: true # true to enable plotting
 plot_quadratic: false # include quadratic regression in plots
 save_plots: false # save plots
@@ -56,3 +57,10 @@ y_fields: # fields to calculate with optional title for plotting and plot flag t
     title: Periodicity (WAT)
   - name: Regul
     title: Regularity (WAT)
+multi_x_fields:
+  - Pressure
+  - AvgLR
+  - Usage
+  - Sleep
+  - REM
+  - Deep

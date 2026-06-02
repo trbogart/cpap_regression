@@ -31,7 +31,6 @@ class Regression:
             self.config = yaml.safe_load(file)
 
         self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
-        self.y_field_names = [field.name for field in self.y_fields]
 
         df = pd.read_csv(self.config['filename'])
 
@@ -51,6 +50,8 @@ class Regression:
         # convert time fields from H:MM to float hours
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
         df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
+        df['REM'] = pd.to_timedelta(df['REM'] + ':00').dt.total_seconds() / 3600
+        df['Deep'] = pd.to_timedelta(df['Deep'] + ':00').dt.total_seconds() / 3600
 
         # calculated fields
         df['Efficiency'] = df['Sleep'] / df['Usage']
@@ -62,6 +63,8 @@ class Regression:
         self.pressure = df['Pressure']
         self.min_pressure = self.pressure.min()
         self.max_pressure = self.pressure.max()
+        self.multi_x_field_names = self.config['multi_x_fields']
+        self.multi_x = StandardScaler().fit_transform(df[self.multi_x_field_names])
 
         # adjust weights based on config
         if self.config['weight_frequency']:
@@ -74,6 +77,7 @@ class Regression:
 
         self.df = df
         self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+        self.multi_y_fields = [field for field in self.y_fields if field.name not in self.multi_x_field_names]
 
     def log(self, s: str):
         print(s)
@@ -152,14 +156,11 @@ class Regression:
         self.log('\nCorrelations with pressure:')
         self._print_field_weights(all_correlations)
 
-        # Bayesian regression
-        if self.config['bayesian']:
-            all_bayesian_weights = self._bayesian()
-            self.log('\nCorrelations with pressure:')
-            self._print_field_weights(all_correlations)
-
         if self.config['alpha'] is not None:
             self._elastic_net()
+
+        if self.config['bayesian']:
+            self._bayesian()
 
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         if self.config['weight_frequency']:
@@ -172,12 +173,12 @@ class Regression:
             return 'not weighted'
         return None
 
-    def _print_field_weights(self, fields_and_weights: list[tuple[str, float]]):
+    def _print_field_weights(self, fields_and_weights: list[tuple[str, float]], prefix: str = ''):
         fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
         if self.config['num_correlations'] > 0:
             fields_and_weights = fields_and_weights[:self.config['num_correlations']]
         for field, weight in fields_and_weights:
-            self.log(f'- {field}: {weight:.3f}')
+            self.log(f'{prefix}- {field}: {weight:.3f}')
 
     def _linear(self, field: Field) -> float:
         x = self.pressure
@@ -220,28 +221,29 @@ class Regression:
         return correl
 
     def _elastic_net(self):
-        # run inverse ElasticNet analysis
         self.log(f'\nNon-zero ElasticNet weights with alpha {self.config['alpha']} '
                  f'and l1_ratio = {self.config['l1_ratio']}:')
-        # inverse
-        X = StandardScaler().fit_transform(self.df[self.y_field_names])
-        y = self.pressure
-        model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
-                             l1_ratio=self.config['l1_ratio'], fit_intercept=True,
-                             random_state=self.config['seed'])
-        model.fit(X, y, sample_weight=self.df['Weight'])
-        field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
-        if field_weights:
-            self._print_field_weights(field_weights)
-        else:
-            self.log('- None')
+        for field in self.multi_y_fields:
+            model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
+                                 l1_ratio=self.config['l1_ratio'], fit_intercept=True,
+                                 random_state=self.config['seed'])
+            model.fit(self.multi_x, self.df[field.name], sample_weight=self.df['Weight'])
+            self._print_multi_field_weights(field, model.coef_)
 
-    def _bayesian(self) -> list[tuple[str, float]]:
-        X = StandardScaler().fit_transform(self.df[self.y_field_names])
-        y = self.pressure
-        model = BayesianRidge()
-        model.fit(X, y)
-        return [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_)]
+    def _bayesian(self):
+        min_weight = self.config['min_bayesian_weight'] if self.config['min_bayesian_weight'] else 0
+        self.log(f'\nBayesian weights with magnitude > {min_weight}:')
+        for field in self.multi_y_fields:
+            model = BayesianRidge()
+            model.fit(self.multi_x, self.df[field.name], sample_weight=self.df['Weight'])
+            self._print_multi_field_weights(field, model.coef_, min_weight)
+
+    def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
+        field_weights = [(self.multi_x_field_names[i], weight) for i, weight in enumerate(weights) if
+                         abs(weight) > min_weight]
+        if field_weights:
+            self.log(f'- {field.name}:')
+            self._print_field_weights(field_weights, prefix='  ')
 
     def _plot_filename(self, field: Field):
         s = []
