@@ -34,6 +34,7 @@ class Regression:
         self.df = pd.read_csv(self.config['filename'])
 
         self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
+        self.df['Timestamp'] = self.df['DateTime'].astype('int64') / 1e9
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df = self.df.sort_values(by='DateTime')
         if self.config['max_days']:

@@ -9,7 +9,7 @@ min_usage: 6.0 # min Usage (hrs)
 min_sleep: 5.5 # min Sleep (hrs)
 min_sleep_efficiency: 0.75 # min ratio between Sleep and Usage
 num_correlations: 0 # num correlations to display (0 for all)
-elastic_net: false # true to enable ElasticNet regression
+elastic_net: true # true to enable ElasticNet regression
 alpha: 0.2 # alpha for ElasticNet regression
 l1_ratio: 1.0 # l1_ratio for ElasticNet regression
 bayesian: true # perform BayesianRidge regression
@@ -68,3 +68,4 @@ multi_x_fields:
   - Sleep
   - REM
   - Deep
+  - Timestamp
