@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import yaml
 from numpy.polynomial.polynomial import Polynomial
-from pandas import DataFrame
 from sklearn.linear_model import SGDRegressor, BayesianRidge
 from sklearn.preprocessing import StandardScaler
 
@@ -32,51 +31,49 @@ class Regression:
 
         self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
 
-        df = pd.read_csv(self.config['filename'])
+        self.df = pd.read_csv(self.config['filename'])
 
-        df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y').dt.strftime('%Y-%m-%d')
-        df = df.sort_values(by='Date')
+        self.df['Date'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y').dt.strftime('%Y-%m-%d')
+        self.df = self.df.sort_values(by='Date')
         if self.config['max_days']:
-            df = df.tail(self.config['max_days'])
+            self.df = self.df.tail(self.config['max_days'])
 
         # pressure field can be empty or contain an exclusion note
-        df['Pressure'] = pd.to_numeric(df['Pressure'], errors='coerce')
+        self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
 
         # weight field is 1 by default (mostly intended for manual exclusion)
-        df['Weight'] = df['Weight'].fillna(1)
+        self.df['Weight'] = self.df['Weight'].fillna(1)
 
-        df = df.dropna()
+        self.df = self.df.dropna()
 
         # convert time fields from H:MM to float hours
-        df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
-        df['Sleep'] = pd.to_timedelta(df['Sleep'] + ':00').dt.total_seconds() / 3600
-        df['REM'] = pd.to_timedelta(df['REM'] + ':00').dt.total_seconds() / 3600
-        df['Deep'] = pd.to_timedelta(df['Deep'] + ':00').dt.total_seconds() / 3600
+        self.df['Usage'] = pd.to_timedelta(self.df['Usage'] + ':00').dt.total_seconds() / 3600
+        self.df['Sleep'] = pd.to_timedelta(self.df['Sleep'] + ':00').dt.total_seconds() / 3600
+        self.df['REM'] = pd.to_timedelta(self.df['REM'] + ':00').dt.total_seconds() / 3600
+        self.df['Deep'] = pd.to_timedelta(self.df['Deep'] + ':00').dt.total_seconds() / 3600
 
         # calculated fields
-        df['Efficiency'] = df['Sleep'] / df['Usage']
-        df['RDI'] = df['AHI'] + df['RERA']
+        self.df['Efficiency'] = self.df['Sleep'] / self.df['Usage']
+        self.df['RDI'] = self.df['AHI'] + self.df['RERA']
+
+        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
 
         # filter by config or by zero weight (possible with manual weighting)
-        df = self._filter(df)
-
-        self.pressure = df['Pressure']
+        self._filter()
+        self.pressure = self.df['Pressure']
         self.min_pressure = self.pressure.min()
         self.max_pressure = self.pressure.max()
         self.multi_x_field_names = self.config['multi_x_fields']
-        self.multi_x = StandardScaler().fit_transform(df[self.multi_x_field_names])
+        self.multi_x = StandardScaler().fit_transform(self.df[self.multi_x_field_names])
 
         # adjust weights based on config
         if self.config['weight_frequency']:
             pressure_counts = self.pressure.value_counts().items()
             pressure_count_map = {pressure: count for pressure, count in pressure_counts}
-            df['Weight'] /= [pressure_count_map[pressure] for pressure in self.pressure]
+            self.df['Weight'] /= [pressure_count_map[pressure] for pressure in self.pressure]
 
         if self.config['weight_usage']:
-            df['Weight'] *= df['Usage']
-
-        self.df = df
-        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+            self.df['Weight'] *= self.df['Usage']
         self.multi_y_fields = [field for field in self.y_fields if field.name not in self.multi_x_field_names]
 
     def log(self, s: str):
@@ -84,57 +81,54 @@ class Regression:
         if self.log_file:
             print(s, file=self.log_file)
 
-    def _filter(self, df: DataFrame) -> DataFrame:
-        # do not print to log file (not defined yet)
-        print(f'Unfiltered N={len(df)} starting {df['Date'].min()}')
-        dates = set(df['Date'])
-        df, dates = self._filter_column(df, dates, 'Weight')  # filter zero weights
-        df, dates = self._filter_column(df, dates, 'Pressure', 'min_pressure')
-        df, dates = self._filter_column(df, dates, 'Pressure', 'max_pressure')
-        df, dates = self._filter_column(df, dates, 'AvgLR', 'max_leak_rate')
-        df, dates = self._filter_column(df, dates, 'Usage', 'min_usage')
-        df, dates = self._filter_column(df, dates, 'Sleep', 'min_sleep')
-        df, dates = self._filter_column(df, dates, 'Efficiency', 'min_sleep_efficiency')
+    def _filter(self):
+        # noinspection PyStringConversionWithoutDunderMethod
+        self.log(f'Unfiltered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}')
+        dates = set(self.df['Date'])
+        dates = self._filter_column(dates, 'Weight')  # filter zero weights
+        dates = self._filter_column(dates, 'Pressure', 'min_pressure')
+        dates = self._filter_column(dates, 'Pressure', 'max_pressure')
+        dates = self._filter_column(dates, 'AvgLR', 'max_leak_rate')
+        dates = self._filter_column(dates, 'Usage', 'min_usage')
+        dates = self._filter_column(dates, 'Sleep', 'min_sleep')
+        self._filter_column(dates, 'Efficiency', 'min_sleep_efficiency')
         print()
-        return df
 
-    def _filter_column(self, df: DataFrame, dates: set, field: str, config_key: str | None = None) -> tuple[
-        DataFrame, set]:
-        # do not print to log file (not defined yet)
+    def _filter_column(self, dates: set, field: str, config_key: str | None = None) -> set:
         if config_key is not None:
             threshold = self.config[config_key]
             if threshold is None:
-                return df, dates
+                return dates
             if config_key.startswith('min_'):
-                filtered_df = df[df[field] >= threshold]
+                filtered_df = self.df[self.df[field] >= threshold]
             elif config_key.startswith('max_'):
-                filtered_df = df[df[field] <= threshold]
+                filtered_df = self.df[self.df[field] <= threshold]
             else:
                 raise ValueError(f'Invalid config name: {config_key}')
         else:
             threshold = 0.0
-            filtered_df = df[df[field] > threshold]
+            filtered_df = self.df[self.df[field] > threshold]
 
         new_dates = set(filtered_df['Date'])
         removed_dates = dates - new_dates
-        removed_rows = df[df['Date'].isin(removed_dates)]
+        removed_rows = self.df[self.df['Date'].isin(removed_dates)]
 
         num_removed = len(dates) - len(new_dates)
         if config_key is not None:
-            print(f'Dropped {num_removed} rows for '
+            self.log(f'Dropped {num_removed} rows for '
                   f'{config_key.replace('_', ' ')}: {threshold}:')
         elif num_removed > 0:
             # for weight
-            print(f'Dropped {num_removed} rows with zero {field}:')
+            self.log(f'Dropped {num_removed} rows with zero {field}:')
         if num_removed > 0:
             for _, row in removed_rows.iterrows():
                 line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
                 if field not in {'Pressure', 'Weight'}:
                     line += f', {field}={row[field]:.2f}'
-                print(line)
+                self.log(line)
 
-        # noinspection PyTypeChecker
-        return filtered_df, new_dates
+        self.df = filtered_df
+        return new_dates
 
     def run(self):
         self.log(f'Filtered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}, '
