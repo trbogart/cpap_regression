@@ -93,8 +93,7 @@ class Regression:
         dates = self._filter_column(dates, 'Usage', 'min_usage')
         dates = self._filter_column(dates, 'Sleep', 'min_sleep')
         dates = self._filter_column(dates, 'Efficiency', 'min_sleep_efficiency')
-        print(f'Dropped {len(orig_dates) - len(dates)} rows total')
-        print()
+        self._log(f'Dropped {len(orig_dates) - len(dates)} rows total')
 
     def _filter_column(self, dates: set, field: str, config_key: str | None = None) -> set:
         if config_key is not None:
@@ -134,7 +133,8 @@ class Regression:
         return new_dates
 
     def run(self):
-        self._log(f'Filtered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}, '
+        # noinspection PyStringConversionWithoutDunderMethod
+        self._log(f'N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}'
                   f'{self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in sorted(self.pressure.unique()):
@@ -199,6 +199,7 @@ class Regression:
 
                 # plot minima or maxima of quadratic regression, if in domain
                 x_extrema = -b / (2 * a)
+                # noinspection PyUnresolvedReferences
                 if self.min_pressure <= x_extrema <= self.max_pressure:
                     plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
@@ -264,7 +265,8 @@ class Regression:
         return f'results_{self._base_filename()}.txt'
 
     def _base_filename(self) -> str:
-        s = [str(self.df['Date'].min()), 'to', str(self.df['Date'].max())]
+        # noinspection PyStringConversionWithoutDunderMethod
+        s = [str(self.df['Date'].max())]
         if self.config['weight_frequency']:
             s.append('freq')
         if self.config['weight_usage']:
@@ -293,7 +295,7 @@ class Regression:
             min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['max_days'] - 1)
             if df.at[df.index[0], 'DateTime'] == min_date:
                 # noinspection PyStringConversionWithoutDunderMethod
-                print(f'Will drop {df.at[df.index[0], 'Date']} with Pressure {df.at[df.index[0], 'Pressure']} tomorrow')
+                self._log(f'Will drop {df.at[df.index[0], 'Date']} with Pressure {df.at[df.index[0], 'Pressure']} tomorrow')
                 df = df.iloc[1:]
         pressure_counts = df['Pressure'].value_counts(ascending=True)
 
@@ -314,7 +316,7 @@ class Regression:
                 # choose highest pressure if mean below center
                 next_pressure: float = max(candidate_pressures)
 
-        print(f'Next Pressure: {next_pressure}')
+        self._log(f'Next Pressure: {next_pressure}')
 
 
 if __name__ == '__main__':
