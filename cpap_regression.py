@@ -75,15 +75,10 @@ class Regression:
         self.df = df
         self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
 
-    def log(self, s: str | None = None):
-        if s:
-            print(s)
-            if self.log_file:
-                print(s, file=self.log_file)
-        else:
-            print()
-            if self.log_file:
-                print(file=self.log_file)
+    def log(self, s: str):
+        print(s)
+        if self.log_file:
+            print(s, file=self.log_file)
 
     def _filter(self, df: DataFrame) -> DataFrame:
         # do not print to log file (not defined yet)
@@ -138,7 +133,8 @@ class Regression:
         return filtered_df, new_dates
 
     def run(self):
-        self.log(f'N={len(self.df)}, {self._weighted_by()}')
+        self.log(f'Filtered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}, '
+                 f'{self._weighted_by()}')
         self.log('Pressure Counts:')
         for pressure in sorted(self.pressure.unique()):
             data_for_pressure = self.df[self.pressure == pressure]
@@ -153,28 +149,14 @@ class Regression:
 
         # Correlation and linear regression
         all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
-        all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-        self.log()
-        if self.config['num_correlations'] == 0:
-            self.log(f'Correlations with Pressure:')
-        else:
-            self.log(f'Top {self.config['num_correlations']} correlations with Pressure:')
-            all_correlations = all_correlations[:self.config['num_correlations']]
-        for field, weight in all_correlations:
-            self.log(f'- {field}: {weight:.3f}')
+        self.log('\nCorrelations with pressure:')
+        self._print_field_weights(all_correlations)
 
         # Bayesian regression
         if self.config['bayesian']:
             all_bayesian_weights = self._bayesian()
-            all_bayesian_weights.sort(key=lambda x: abs(x[1]), reverse=True)
-            self.log()
-            if self.config['num_correlations'] == 0:
-                self.log(f'Bayesian weights with Pressure:')
-            else:
-                self.log(f'Top {self.config['num_correlations']} Bayesian weights with Pressure:')
-                all_bayesian_weights = all_bayesian_weights[:self.config['num_correlations']]
-            for field, weight in all_bayesian_weights:
-                self.log(f'- {field}: {weight:.3f}')
+            self.log('\nCorrelations with pressure:')
+            self._print_field_weights(all_correlations)
 
         if self.config['alpha'] is not None:
             self._elastic_net()
@@ -189,6 +171,13 @@ class Regression:
         if include_unweighted:
             return 'not weighted'
         return None
+
+    def _print_field_weights(self, fields_and_weights: list[tuple[str, float]]):
+        fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
+        if self.config['num_correlations'] > 0:
+            fields_and_weights = fields_and_weights[:self.config['num_correlations']]
+        for field, weight in fields_and_weights:
+            self.log(f'- {field}: {weight:.3f}')
 
     def _linear(self, field: Field) -> float:
         x = self.pressure
@@ -232,8 +221,7 @@ class Regression:
 
     def _elastic_net(self):
         # run inverse ElasticNet analysis
-        self.log()
-        self.log(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} '
+        self.log(f'\nNon-zero ElasticNet weights with alpha {self.config['alpha']} '
                  f'and l1_ratio = {self.config['l1_ratio']}:')
         # inverse
         X = StandardScaler().fit_transform(self.df[self.y_field_names])
@@ -244,9 +232,7 @@ class Regression:
         model.fit(X, y, sample_weight=self.df['Weight'])
         field_weights = [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_) if coef > 0]
         if field_weights:
-            field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
-            for field, weight in field_weights:
-                self.log(f'- {field}: {weight:.3f}')
+            self._print_field_weights(field_weights)
         else:
             self.log('- None')
 
@@ -269,7 +255,7 @@ class Regression:
         return f'{field.name.lower().replace(' ', '_')}_{self._base_filename()}.png'
 
     def _log_filename(self):
-        return f'log_{self._base_filename()}.txt'
+        return f'results_{self._base_filename()}.txt'
 
     def _base_filename(self) -> str:
         s = [str(self.df['Date'].min()), 'to', str(self.df['Date'].max())]
