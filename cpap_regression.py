@@ -35,6 +35,10 @@ class Regression:
 
         df = pd.read_csv(self.config['filename'])
 
+        df = df.sort_values(by='Date')
+        if self.config['max_days']:
+            df = df.tail(self.config['max_days'])
+
         # pressure field can be empty or contain an exclusion note
         df['Pressure'] = pd.to_numeric(df['Pressure'], errors='coerce')
         
@@ -42,7 +46,6 @@ class Regression:
         df['Weight'] = df['Weight'].fillna(1)
 
         df = df.dropna()
-        df = df.sort_values(by='Date')
 
         # convert time fields from H:MM to float hours
         df['Usage'] = pd.to_timedelta(df['Usage'] + ':00').dt.total_seconds() / 3600
@@ -71,6 +74,7 @@ class Regression:
         self.df = df
 
     def _filter(self, df: DataFrame) -> DataFrame:
+        print(f'Unfiltered N={len(df)} starting {df['Date'].min()}')
         dates = set(df['Date'])
         df, dates = self._filter_column(df, dates, 'Weight')  # filter zero weights
         df, dates = self._filter_column(df, dates, 'Pressure', 'min_pressure')
@@ -160,14 +164,16 @@ class Regression:
         if self.config['alpha'] is not None:
             self._elastic_net()
 
-    def _weighted_by(self) -> str:
+    def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         if self.config['weight_frequency']:
             if self.config['weight_usage']:
                 return 'weighted by inverse frequency and usage'
             return 'weighted by inverse frequency'
         if self.config['weight_usage']:
             return 'weighted by usage'
-        return 'not weighted'
+        if include_unweighted:
+            return 'not weighted'
+        return None
 
     def _linear(self, field: Field) -> float:
         x = self.pressure
@@ -192,10 +198,16 @@ class Regression:
 
                 plt.plot(polyline, poly2(polyline), color='red')
 
+            weighted_by = self._weighted_by(include_unweighted=False)
+            if weighted_by:
+                title = f'{field.title} - {weighted_by}'
+            else:
+                title = field.title
+
             plt.scatter(x, y)
             plt.xlabel(f'Pressure (r = {correl:.2f})')
             plt.ylabel(field.name)
-            plt.title(field.title)
+            plt.title(title)
             plt.tight_layout()
             if self.config['save_plots']:
                 plt.savefig(self._field_filename(f'{field.name}.png'), bbox_inches='tight')
