@@ -323,10 +323,10 @@ class Regression:
                 # choose highest pressure if mean below center
                 next_pressure: float = max(candidate_pressures)
 
-        if self.df['Pressure'].iloc[-1] == next_pressure:
+        if last_pressure == next_pressure:
             self._log(f'Leave pressure at {next_pressure}')
         else:
-            self._log(f'Change pressure to {next_pressure}')
+            self._log(f'Change pressure from {last_pressure} to {next_pressure}')
 
 
 if __name__ == '__main__':
