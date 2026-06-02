@@ -135,7 +135,7 @@ class Regression:
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
         self._log(f'N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}'
-                  f'{self._weighted_by()}')
+                  f' - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in sorted(self.pressure.unique()):
             data_for_pressure = self.df[self.pressure == pressure]
