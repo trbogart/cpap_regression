@@ -294,10 +294,10 @@ class Regression:
             if len(candidate_pressures) == 1:
                 next_pressure: float = candidate_pressures[0]
             elif df['Pressure'].mean() > (df['Pressure'].min() + df['Pressure'].max()) / 2:
-                # choose lowest pressure
+                # choose lowest pressure if mean above center
                 next_pressure: float = min(candidate_pressures)
             else:
-                # choose highest pressure
+                # choose highest pressure if mean below center
                 next_pressure: float = max(candidate_pressures)
 
         print(f'Next Pressure: {next_pressure}')
