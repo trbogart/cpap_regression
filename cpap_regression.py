@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from numpy.polynomial.polynomial import Polynomial
-from sklearn.linear_model import SGDRegressor, BayesianRidge
+from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
 from sklearn.preprocessing import StandardScaler
 
 
@@ -160,6 +160,9 @@ class Regression:
         if self.config['bayesian']:
             self._bayesian()
 
+        if self.config['ard']:
+            self._ard()
+
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         if self.config['weight_frequency']:
             if self.config['weight_usage']:
@@ -171,12 +174,12 @@ class Regression:
             return 'not weighted'
         return None
 
-    def _print_field_weights(self, fields_and_weights: list[tuple[str, float]], prefix: str = ''):
+    def _print_field_weights(self, fields_and_weights: list[tuple[str, float]], prefix: str = '- '):
         fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
         if self.config['num_correlations'] > 0:
             fields_and_weights = fields_and_weights[:self.config['num_correlations']]
         for field, weight in fields_and_weights:
-            self._log(f'{prefix}- {field}: {weight:.3f}')
+            self._log(f'{prefix}{field}: {weight:.3f}')
 
     def _linear(self, field: Field) -> float:
         x = self.pressure
@@ -230,10 +233,21 @@ class Regression:
 
     def _bayesian(self):
         min_weight = self.config['min_bayesian_weight'] if self.config['min_bayesian_weight'] else 0
-        self._log(f'\nBayesian weights with magnitude > {min_weight}:')
+        self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
         for field in self.multi_y_fields:
             model = BayesianRidge()
             model.fit(self.multi_x, self.df[field.name], sample_weight=self.df['Weight'])
+            self._print_multi_field_weights(field, model.coef_, min_weight)
+
+    def _ard(self):
+        min_weight = self.config['min_ard_weight'] if self.config['min_ard_weight'] else 0
+        self._log(f'\nARD weights with magnitude > {min_weight}:')
+        for field in self.multi_y_fields:
+            weights_sqrt = np.sqrt(np.array(self.df['Weight']))
+            X_weighted = self.multi_x * weights_sqrt[:, np.newaxis]
+            y_weighted = self.df[field.name] * weights_sqrt
+            model = ARDRegression()
+            model.fit(X_weighted, y_weighted)
             self._print_multi_field_weights(field, model.coef_, min_weight)
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
@@ -241,7 +255,7 @@ class Regression:
                          abs(weight) > min_weight]
         if field_weights:
             self._log(f'- {field.name}:')
-            self._print_field_weights(field_weights, prefix='  ')
+            self._print_field_weights(field_weights, prefix=' -- ')
 
     def _plot_filename(self, field: Field):
         return f'{field.name.lower().replace(' ', '_')}_{self._base_filename()}.png'
