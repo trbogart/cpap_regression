@@ -134,7 +134,7 @@ class Regression:
                   f'{total_weight:.2f} total weight): {', '.join(dates)})')
 
         avg_pressure = self.pressure.mean()
-        print(f'Average Pressure: {avg_pressure :.3f}')
+        print(f'Mean Pressure: {avg_pressure :.3f}')
 
         # Correlation and linear regression
         all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
