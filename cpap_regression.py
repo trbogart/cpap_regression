@@ -96,6 +96,7 @@ class Regression:
         df, dates = self._filter_column(df, dates, 'Usage', 'min_usage')
         df, dates = self._filter_column(df, dates, 'Sleep', 'min_sleep')
         df, dates = self._filter_column(df, dates, 'Efficiency', 'min_sleep_efficiency')
+        print()
         return df
 
     def _filter_column(self, df: DataFrame, dates: set, field: str, config_key: str | None = None) -> tuple[
@@ -133,10 +134,10 @@ class Regression:
                     line += f', {field}={row[field]:.2f}'
                 print(line)
 
+        # noinspection PyTypeChecker
         return filtered_df, new_dates
 
     def run(self):
-        self.log()
         self.log(f'N={len(self.df)}, {self._weighted_by()}')
         self.log('Pressure Counts:')
         for pressure in sorted(self.pressure.unique()):
