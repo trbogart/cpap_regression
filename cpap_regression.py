@@ -35,13 +35,14 @@ class Regression:
 
         df = pd.read_csv(self.config['filename'])
 
+        df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y').dt.strftime('%Y-%m-%d')
         df = df.sort_values(by='Date')
         if self.config['max_days']:
             df = df.tail(self.config['max_days'])
 
         # pressure field can be empty or contain an exclusion note
         df['Pressure'] = pd.to_numeric(df['Pressure'], errors='coerce')
-        
+
         # weight field is 1 by default (mostly intended for manual exclusion)
         df['Weight'] = df['Weight'].fillna(1)
 
@@ -72,8 +73,20 @@ class Regression:
             df['Weight'] *= df['Usage']
 
         self.df = df
+        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+
+    def log(self, s: str | None = None):
+        if s:
+            print(s)
+            if self.log_file:
+                print(s, file=self.log_file)
+        else:
+            print()
+            if self.log_file:
+                print(file=self.log_file)
 
     def _filter(self, df: DataFrame) -> DataFrame:
+        # do not print to log file (not defined yet)
         print(f'Unfiltered N={len(df)} starting {df['Date'].min()}')
         dates = set(df['Date'])
         df, dates = self._filter_column(df, dates, 'Weight')  # filter zero weights
@@ -85,7 +98,9 @@ class Regression:
         df, dates = self._filter_column(df, dates, 'Efficiency', 'min_sleep_efficiency')
         return df
 
-    def _filter_column(self, df: DataFrame, dates: set, field: str, config_key: str | None = None) -> tuple[DataFrame, set]:
+    def _filter_column(self, df: DataFrame, dates: set, field: str, config_key: str | None = None) -> tuple[
+        DataFrame, set]:
+        # do not print to log file (not defined yet)
         if config_key is not None:
             threshold = self.config[config_key]
             if threshold is None:
@@ -121,45 +136,44 @@ class Regression:
         return filtered_df, new_dates
 
     def run(self):
-        print()
-
-        print(f'N={len(self.df)}, {self._weighted_by()}')
-        print('Pressure Counts:')
+        self.log()
+        self.log(f'N={len(self.df)}, {self._weighted_by()}')
+        self.log('Pressure Counts:')
         for pressure in sorted(self.pressure.unique()):
             data_for_pressure = self.df[self.pressure == pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            print(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
-                  f'{total_weight:.2f} total weight): {', '.join(dates)})')
+            self.log(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
+                     f'{total_weight:.2f} total weight): {', '.join(dates)})')
 
         avg_pressure = self.pressure.mean()
-        print(f'Mean Pressure: {avg_pressure :.3f}')
+        self.log(f'Mean Pressure: {avg_pressure :.3f}')
 
         # Correlation and linear regression
         all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
         all_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
-        print()
+        self.log()
         if self.config['num_correlations'] == 0:
-            print(f'Correlations with Pressure:')
+            self.log(f'Correlations with Pressure:')
         else:
-            print(f'Top {self.config['num_correlations']} correlations with Pressure:')
+            self.log(f'Top {self.config['num_correlations']} correlations with Pressure:')
             all_correlations = all_correlations[:self.config['num_correlations']]
         for field, weight in all_correlations:
-            print(f'- {field}: {weight:.3f}')
+            self.log(f'- {field}: {weight:.3f}')
 
         # Bayesian regression
         if self.config['bayesian']:
             all_bayesian_weights = self._bayesian()
             all_bayesian_weights.sort(key=lambda x: abs(x[1]), reverse=True)
-            print()
+            self.log()
             if self.config['num_correlations'] == 0:
-                print(f'Bayesian weights with Pressure:')
+                self.log(f'Bayesian weights with Pressure:')
             else:
-                print(f'Top {self.config['num_correlations']} Bayesian weights with Pressure:')
+                self.log(f'Top {self.config['num_correlations']} Bayesian weights with Pressure:')
                 all_bayesian_weights = all_bayesian_weights[:self.config['num_correlations']]
             for field, weight in all_bayesian_weights:
-                print(f'- {field}: {weight:.3f}')
+                self.log(f'- {field}: {weight:.3f}')
 
         if self.config['alpha'] is not None:
             self._elastic_net()
@@ -210,16 +224,16 @@ class Regression:
             plt.title(title)
             plt.tight_layout()
             if self.config['save_plots']:
-                plt.savefig(self._field_filename(f'{field.name}.png'), bbox_inches='tight')
+                plt.savefig(self._plot_filename(field), bbox_inches='tight')
             plt.show()
 
         return correl
 
     def _elastic_net(self):
         # run inverse ElasticNet analysis
-        print()
-        print(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} '
-              f'and l1_ratio = {self.config['l1_ratio']}:')
+        self.log()
+        self.log(f'Non-zero ElasticNet weights with alpha {self.config['alpha']} '
+                 f'and l1_ratio = {self.config['l1_ratio']}:')
         # inverse
         X = StandardScaler().fit_transform(self.df[self.y_field_names])
         y = self.pressure
@@ -231,9 +245,9 @@ class Regression:
         if field_weights:
             field_weights.sort(key=lambda x: abs(x[1]), reverse=True)
             for field, weight in field_weights:
-                print(f'- {field}: {weight:.3f}')
+                self.log(f'- {field}: {weight:.3f}')
         else:
-            print('- None')
+            self.log('- None')
 
     def _bayesian(self) -> list[tuple[str, float]]:
         X = StandardScaler().fit_transform(self.df[self.y_field_names])
@@ -242,9 +256,27 @@ class Regression:
         model.fit(X, y)
         return [(self.y_field_names[i], coef) for i, coef in enumerate(model.coef_)]
 
-    @staticmethod
-    def _field_filename(field: str):
-        return field.lower().replace(' ', '_')
+    def _plot_filename(self, field: Field):
+        s = []
+        if self.config['weight_frequency']:
+            s.append('freq')
+        if self.config['weight_usage']:
+            s.append('usage')
+        s.append(str(self.df['Date'].min()))
+        s.append('to')
+        s.append(str(self.df['Date'].max()))
+        return f'{field.name.lower().replace(' ', '_')}_{self._base_filename()}.png'
+
+    def _log_filename(self):
+        return f'log_{self._base_filename()}.txt'
+
+    def _base_filename(self) -> str:
+        s = [str(self.df['Date'].min()), 'to', str(self.df['Date'].max())]
+        if self.config['weight_frequency']:
+            s.append('freq')
+        if self.config['weight_usage']:
+            s.append('usage')
+        return '_'.join(s)
 
     @staticmethod
     def _weighted_correlation(x, y, weights):
