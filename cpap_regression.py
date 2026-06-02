@@ -154,7 +154,7 @@ class Regression:
         self._log('\nCorrelations with pressure:')
         self._print_field_weights(all_correlations)
 
-        if self.config['alpha'] is not None:
+        if self.config['elastic_net']:
             self._elastic_net()
 
         if self.config['bayesian']:
