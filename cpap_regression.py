@@ -70,9 +70,8 @@ class Regression:
 
         # adjust weights based on config
         if self.config['weight_frequency']:
-            pressure_counts = self.pressure.value_counts().items()
-            pressure_count_map = {pressure: count for pressure, count in pressure_counts}
-            self.df['Weight'] /= [pressure_count_map[pressure] for pressure in self.pressure]
+            pressure_counts = self.pressure.value_counts()
+            self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.pressure]
 
         if self.config['weight_usage']:
             self.df['Weight'] *= self.df['Usage']
@@ -183,11 +182,17 @@ class Regression:
             self._log(f'{prefix}{field}: {weight:.3f}')
 
     def _linear(self, field: Field) -> float:
-        x = self.pressure
+        x_field = self.config['x_field']
+        x = self.df[x_field]
         y = self.df[field.name]
         correl = self._weighted_correlation(x, y, self.df['Weight'])
         if field.plot and self.config['plot']:
-            polyline = np.linspace(self.min_pressure, self.max_pressure, 100)
+            # noinspection PyTypeChecker
+            x_min: float = x.min()
+            # noinspection PyTypeChecker
+            x_max: float = x.max()
+
+            polyline = np.linspace(x_min, x_max, 100)
 
             # linear regression
             poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
@@ -201,7 +206,7 @@ class Regression:
                 # plot minima or maxima of quadratic regression, if in domain
                 x_extrema = -b / (2 * a)
                 # noinspection PyUnresolvedReferences
-                if self.min_pressure <= x_extrema <= self.max_pressure:
+                if x_min <= x_extrema <= x_max:
                     plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
                 plt.plot(polyline, poly2(polyline), color='red')
@@ -213,7 +218,7 @@ class Regression:
                 title = field.title
 
             plt.scatter(x, y)
-            plt.xlabel(f'Pressure (r = {correl:.2f})')
+            plt.xlabel(f'{x_field} (r = {correl:.2f})')
             plt.ylabel(field.name)
             plt.title(title)
             plt.tight_layout()

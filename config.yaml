@@ -22,7 +22,8 @@ save_plots: false # save plots
 save_logs: true # save logs
 weight_frequency: false # true to weight by inverse frequency for pressure
 weight_usage: false # true to weight by usage
-y_fields: # fields to calculate with optional title for plotting and plot flag to allow plotting if globally enabled
+x_field: Pressure # X field for linear regression and plots
+y_fields: # fields to calculate with optional title for plots and plot flag to allow plotting if globally enabled
   - name: Comb FL
     title: Combined FL (WAT/NED)
     plot: true
