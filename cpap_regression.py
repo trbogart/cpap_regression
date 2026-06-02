@@ -26,7 +26,7 @@ class Field:
 class Regression:
     # noinspection PyArgumentList
     def __init__(self, config_filename: str):
-        with open('config.yaml', 'r') as file:
+        with open(config_filename, 'r') as file:
             # Use safe_load to avoid executing arbitrary code from the file
             self.config = yaml.safe_load(file)
 
