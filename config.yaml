@@ -1,5 +1,6 @@
 filename: cpap.csv # CSV file
 seed: 42
+print_filter_details: false # print filter details
 max_days: 60 # maximum number of days to include
 min_pressure: 7.0 # min Pressure
 max_pressure: # max Pressure

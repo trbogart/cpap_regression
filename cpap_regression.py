@@ -33,8 +33,9 @@ class Regression:
 
         self.df = pd.read_csv(self.config['filename'])
 
-        self.df['Date'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y').dt.strftime('%Y-%m-%d')
-        self.df = self.df.sort_values(by='Date')
+        self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
+        self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
+        self.df = self.df.sort_values(by='DateTime')
         if self.config['max_days']:
             self.df = self.df.tail(self.config['max_days'])
 
@@ -76,22 +77,23 @@ class Regression:
             self.df['Weight'] *= self.df['Usage']
         self.multi_y_fields = [field for field in self.y_fields if field.name not in self.multi_x_field_names]
 
-    def log(self, s: str):
+    def _log(self, s: str):
         print(s)
         if self.log_file:
             print(s, file=self.log_file)
 
     def _filter(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self.log(f'Unfiltered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}')
-        dates = set(self.df['Date'])
-        dates = self._filter_column(dates, 'Weight')  # filter zero weights
+        self._log(f'Unfiltered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}')
+        orig_dates = set(self.df['Date'])
+        dates = self._filter_column(orig_dates, 'Weight')  # filter zero weights
         dates = self._filter_column(dates, 'Pressure', 'min_pressure')
         dates = self._filter_column(dates, 'Pressure', 'max_pressure')
         dates = self._filter_column(dates, 'AvgLR', 'max_leak_rate')
         dates = self._filter_column(dates, 'Usage', 'min_usage')
         dates = self._filter_column(dates, 'Sleep', 'min_sleep')
-        self._filter_column(dates, 'Efficiency', 'min_sleep_efficiency')
+        dates = self._filter_column(dates, 'Efficiency', 'min_sleep_efficiency')
+        print(f'Dropped {len(orig_dates) - len(dates)} rows total')
         print()
 
     def _filter_column(self, dates: set, field: str, config_key: str | None = None) -> set:
@@ -114,40 +116,42 @@ class Regression:
         removed_rows = self.df[self.df['Date'].isin(removed_dates)]
 
         num_removed = len(dates) - len(new_dates)
-        if config_key is not None:
-            self.log(f'Dropped {num_removed} rows for '
-                  f'{config_key.replace('_', ' ')}: {threshold}:')
-        elif num_removed > 0:
-            # for weight
-            self.log(f'Dropped {num_removed} rows with zero {field}:')
-        if num_removed > 0:
-            for _, row in removed_rows.iterrows():
-                line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
-                if field not in {'Pressure', 'Weight'}:
-                    line += f', {field}={row[field]:.2f}'
-                self.log(line)
+        if self.config['print_filter_details']:
+            if config_key is not None:
+                self._log(f'Dropped {num_removed} rows for '
+                          f'{config_key.replace('_', ' ')}: {threshold}')
+            elif num_removed > 0:
+                # for weight
+                self._log(f'Dropped {num_removed} rows with zero {field}')
+            if num_removed > 0:
+                for _, row in removed_rows.iterrows():
+                    line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
+                    if field not in {'Pressure', 'Weight'}:
+                        line += f', {field}={row[field]:.2f}'
+                    self._log(line)
 
         self.df = filtered_df
         return new_dates
 
     def run(self):
-        self.log(f'Filtered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}, '
-                 f'{self._weighted_by()}')
-        self.log('Pressure Counts:')
+        self._log(f'Filtered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}, '
+                  f'{self._weighted_by()}')
+        self._log('Pressure Counts:')
         for pressure in sorted(self.pressure.unique()):
             data_for_pressure = self.df[self.pressure == pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            self.log(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
-                     f'{total_weight:.2f} total weight): {', '.join(dates)})')
+            self._log(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
+                      f'{total_weight:.2f} total weight): {', '.join(dates)})')
 
         avg_pressure = self.pressure.mean()
-        self.log(f'Mean Pressure: {avg_pressure :.3f}')
+        self._log(f'Mean Pressure: {avg_pressure :.3f}')
+        self._next_pressure()
 
         # Correlation and linear regression
         all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
-        self.log('\nCorrelations with pressure:')
+        self._log('\nCorrelations with pressure:')
         self._print_field_weights(all_correlations)
 
         if self.config['alpha'] is not None:
@@ -172,7 +176,7 @@ class Regression:
         if self.config['num_correlations'] > 0:
             fields_and_weights = fields_and_weights[:self.config['num_correlations']]
         for field, weight in fields_and_weights:
-            self.log(f'{prefix}- {field}: {weight:.3f}')
+            self._log(f'{prefix}- {field}: {weight:.3f}')
 
     def _linear(self, field: Field) -> float:
         x = self.pressure
@@ -215,8 +219,8 @@ class Regression:
         return correl
 
     def _elastic_net(self):
-        self.log(f'\nNon-zero ElasticNet weights with alpha {self.config['alpha']} '
-                 f'and l1_ratio = {self.config['l1_ratio']}:')
+        self._log(f'\nNon-zero ElasticNet weights with alpha {self.config['alpha']} '
+                  f'and l1_ratio = {self.config['l1_ratio']}:')
         for field in self.multi_y_fields:
             model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
                                  l1_ratio=self.config['l1_ratio'], fit_intercept=True,
@@ -226,7 +230,7 @@ class Regression:
 
     def _bayesian(self):
         min_weight = self.config['min_bayesian_weight'] if self.config['min_bayesian_weight'] else 0
-        self.log(f'\nBayesian weights with magnitude > {min_weight}:')
+        self._log(f'\nBayesian weights with magnitude > {min_weight}:')
         for field in self.multi_y_fields:
             model = BayesianRidge()
             model.fit(self.multi_x, self.df[field.name], sample_weight=self.df['Weight'])
@@ -236,18 +240,10 @@ class Regression:
         field_weights = [(self.multi_x_field_names[i], weight) for i, weight in enumerate(weights) if
                          abs(weight) > min_weight]
         if field_weights:
-            self.log(f'- {field.name}:')
+            self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix='  ')
 
     def _plot_filename(self, field: Field):
-        s = []
-        if self.config['weight_frequency']:
-            s.append('freq')
-        if self.config['weight_usage']:
-            s.append('usage')
-        s.append(str(self.df['Date'].min()))
-        s.append('to')
-        s.append(str(self.df['Date'].max()))
         return f'{field.name.lower().replace(' ', '_')}_{self._base_filename()}.png'
 
     def _log_filename(self):
@@ -275,6 +271,36 @@ class Regression:
 
         # Compute correlation
         return cov_xy / np.sqrt(cov_xx * cov_yy)
+
+    # noinspection PyTypeChecker
+    def _next_pressure(self):
+        df = self.df
+        if self.config['max_days']:
+            min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['max_days'] - 1)
+            if df.at[df.index[0], 'DateTime'] == min_date:
+                # noinspection PyStringConversionWithoutDunderMethod
+                print(f'Will drop {df.at[df.index[0], 'Date']} with Pressure {df.at[df.index[0], 'Pressure']} tomorrow')
+                df = df.iloc[1:]
+        pressure_counts = df['Pressure'].value_counts(ascending=True)
+
+        min_count = pressure_counts.iloc[0]
+
+        last_pressure = df['Pressure'].iloc[-1]
+        if False and pressure_counts[last_pressure] == pressure_counts.iloc[0]:
+            # repeat previous pressure if it has the same count
+            next_pressure: float = last_pressure
+        else:
+            candidate_pressures = [pressure for pressure, count in pressure_counts.items() if count == min_count]
+            if len(candidate_pressures) == 1:
+                next_pressure: float = candidate_pressures[0]
+            elif df['Pressure'].mean() > (df['Pressure'].min() + df['Pressure'].max()) / 2:
+                # choose lowest pressure
+                next_pressure: float = min(candidate_pressures)
+            else:
+                # choose highest pressure
+                next_pressure: float = max(candidate_pressures)
+
+        print(f'Next Pressure: {next_pressure}')
 
 
 if __name__ == '__main__':
