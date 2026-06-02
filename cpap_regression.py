@@ -301,7 +301,8 @@ class Regression:
             min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['max_days'] - 1)
             if df.at[df.index[0], 'DateTime'] == min_date:
                 # noinspection PyStringConversionWithoutDunderMethod
-                self._log(f'Will drop {df.at[df.index[0], 'Date']} with Pressure {df.at[df.index[0], 'Pressure']} tomorrow')
+                self._log(f'Will drop {df.at[df.index[0], 'Date']} '
+                          f'(Pressure {df.at[df.index[0], 'Pressure']}) tomorrow')
                 df = df.iloc[1:]
         pressure_counts = df['Pressure'].value_counts(ascending=True)
 
@@ -322,7 +323,10 @@ class Regression:
                 # choose highest pressure if mean below center
                 next_pressure: float = max(candidate_pressures)
 
-        self._log(f'Next Pressure: {next_pressure}')
+        if self.df['Pressure'].iloc[-1] == next_pressure:
+            self._log(f'Leave pressure at {next_pressure}')
+        else:
+            self._log(f'Change pressure to {next_pressure}')
 
 
 if __name__ == '__main__':
