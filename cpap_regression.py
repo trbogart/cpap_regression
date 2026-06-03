@@ -303,7 +303,7 @@ class Regression:
     # noinspection PyTypeChecker
     def _next_pressure(self):
         df = self.df
-        avg_pressure = self.pressure.mean()
+        avg_pressure = df['Pressure'].mean()
         self._log(f'Mean Pressure: {avg_pressure :.3f}')
         if self.config['max_days']:
             min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['max_days'] - 1)
@@ -311,14 +311,15 @@ class Regression:
                 df = df.iloc[1:]
                 avg_pressure = df['Pressure'].mean()
                 # noinspection PyStringConversionWithoutDunderMethod
-                self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
-                          f'(new mean {avg_pressure:.3f})')
-
+                self._log(
+                    f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
+                    f'(new mean {avg_pressure:.3f})')
 
         pressure_counts = df['Pressure'].value_counts(ascending=True)
 
         min_count = pressure_counts.iloc[0]
         if any(pressure_counts.get(pressure, 0) == 0 for pressure in self.valid_pressures):
+            # no data for at least 1 valid pressure in range
             min_count = 0
 
         candidate_count = min_count + self.config['pressure_count_leeway']
@@ -327,26 +328,38 @@ class Regression:
 
         last_pressure = df['Pressure'].iloc[-1]
 
+        print('??? candidate_pressures:', candidate_pressures)
+
         def get_next_pressure() -> float:
-            if len(candidate_pressures) == 0:
-                return self.min_pressure
             if len(candidate_pressures) == 1:
                 return candidate_pressures[0]
-            if pressure_counts[last_pressure] == min_count:
+            if last_pressure in candidate_pressures:
                 # repeat previous pressure if it has the same count
                 return last_pressure
-            if avg_pressure > (self.min_pressure + self.max_pressure) / 2:
-                # choose lowest candidate pressure if mean above center
-                return min(candidate_pressures)
-            # choose highest pressure if mean below center
-            return max(candidate_pressures)
+            target_pressure = (self.min_pressure + self.max_pressure) / 2
+            sum_pressures = df['Pressure'].sum()
+            new_count = len(df) + 1
+            best_pressure = self.min_pressure
+            best_pressure_distance = float('inf')
+
+            for pressure in candidate_pressures:
+                pressure_distance = abs((sum_pressures + pressure) / new_count - target_pressure)
+                if pressure == last_pressure:
+                    pressure_distance *= self.config['current_pressure_boost']
+                if pressure_distance < best_pressure_distance:
+                    best_pressure = pressure
+                    best_pressure_distance = pressure_distance
+
+            return best_pressure
 
         next_pressure = get_next_pressure()
 
-        if last_pressure == next_pressure:
-            self._log(f'Leave Pressure at {next_pressure}')
+        if next_pressure < last_pressure:
+            self._log(f'Decrease Pressure from {last_pressure} to {next_pressure}')
+        elif next_pressure > last_pressure:
+            self._log(f'Increase Pressure from {last_pressure} to {next_pressure}')
         else:
-            self._log(f'Change Pressure from {last_pressure} to {next_pressure}')
+            self._log(f'Leave Pressure at {next_pressure}')
 
 
 if __name__ == '__main__':
