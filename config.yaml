@@ -23,15 +23,15 @@ linear:
   plot_quadratic: false # include quadratic regression in plots
   save_plots: false # save plots
 elastic_net:
-  enabled: false # true to enable ElasticNet regression
+c  enabled: false # true to enable ElasticNet regression using fields with multi_x_field
   alpha: 0.2 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
   seed: 42
 bayesian:
-  enabled: false # perform BayesianRidge regression
+  enabled: false # perform BayesianRidge regression using fields with multi_x_field
   min_weight: 0.1 # optional minimum BayesianRidge weight to print
 ard:
-  enabled: true # perform ARD Bayesian regression
+  enabled: true # perform ARD Bayesian regression using fields with multi_x_field
   min_weight: 0.1 # optional minimum ARD weight to print
 weighted:
   frequency: false # true to weight by inverse frequency for pressure
