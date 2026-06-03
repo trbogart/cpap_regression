@@ -1,6 +1,7 @@
 import random
 import sys
 from dataclasses import dataclass
+from itertools import islice, chain
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,17 +12,22 @@ from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
 from sklearn.preprocessing import StandardScaler
 
 
-@dataclass
+@dataclass(frozen=True)
 class Field:
+    key: str
     name: str
     title: str
     plot: bool
+    ignored: bool
 
-    def __init__(self, field_config: dict):
-        self.name = field_config['name']
-        self.title = field_config.get('title', self.name)
-        self.plot = field_config['plot'] if 'plot' in field_config else False
-        self.enabled = field_config['enabled'] if 'enabled' in field_config else True
+    @classmethod
+    def from_config(cls, field_config: dict):
+        key = field_config['key']
+        name = field_config['name'] if 'name' in field_config else key
+        title = field_config['title'] if 'title' in field_config else name
+        plot = field_config['plot'] if 'plot' in field_config else False
+        ignored = field_config['ignored'] if 'ignored' in field_config else False
+        return cls(key, name, title, plot, ignored)
 
 
 class Regression:
@@ -31,7 +37,10 @@ class Regression:
             # Use safe_load to avoid executing arbitrary code from the file
             self.config = yaml.safe_load(file)
 
-        self.y_fields = [f for field_config in self.config['y_fields'] if (f := Field(field_config)).enabled]
+        self.y_fields = self._get_fields('y_fields')
+        self.x_fields = self._get_fields('x_fields')
+        self.multi_x_fields = self._get_fields('multi_x_fields')
+        self.multi_y_fields = [field for field in self.y_fields if field not in self.multi_x_fields]
 
         self.df = pd.read_csv(self.config['filename'])
 
@@ -109,9 +118,8 @@ class Regression:
         # noinspection PyTypeChecker
         self.max_pressure: float = self.config['max_pressure'] if self.config['max_pressure'] else self.pressure.max()
         self.valid_pressures = [p / 5 for p in range(int(self.min_pressure * 5), int(self.max_pressure * 5) + 1)]
-        self.multi_x_field_names = self.config['multi_x_fields']
-        self.multi_x = StandardScaler().fit_transform(self.df[self.multi_x_field_names])
 
+        self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
         if self.config['weight_frequency']:
             pressure_counts = self.pressure.value_counts()
@@ -119,7 +127,9 @@ class Regression:
 
         if self.config['weight_usage']:
             self.df['Weight'] *= self.df['Usage']
-        self.multi_y_fields = [field for field in self.y_fields if field.name not in self.multi_x_field_names]
+
+    def _get_fields(self, config: str) -> list[Field]:
+        return [field for field_config in self.config[config] if not (field := Field.from_config(field_config)).ignored]
 
     def _log(self, s: str):
         print(s)
@@ -181,11 +191,12 @@ class Regression:
             self._log(f'Minimum N=2')
             sys.exit(0)
 
+        if self.config['num_all_correlations']:
+            self._all_correlations()
+
         # Correlation and linear regression
         if self.config['linear']:
-            all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
-            self._log(f'\nCorrelations with {self.config['x_field']}:')
-            self._print_field_weights(all_correlations)
+            self._linear()
 
         if self.config['elastic_net']:
             self._elastic_net()
@@ -195,6 +206,32 @@ class Regression:
 
         if self.config['ard']:
             self._ard()
+
+    def _all_correlations(self):
+        all_fields = {field.key: field for field in chain(self.multi_x_fields, self.y_fields, self.x_fields)}
+        all_field_names = list(all_fields.keys())
+        correlations = []
+        for i, field_key1 in enumerate(all_field_names):
+            for j, field_key2 in enumerate(islice(all_field_names, i)):
+                correlation = self._weighted_correlation(self.df[field_key1], self.df[field_key2])
+                correlations.append((all_fields[field_key1], all_fields[field_key2], correlation))
+        correlations.sort(key=lambda t: abs(t[2]), reverse=True)
+        correlations = correlations[:self.config['num_all_correlations']]
+        self._log(f'\nTop {self.config['num_all_correlations']} correlations')
+        for field1, field2, correlation in correlations:
+            print(f'- {' and '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
+
+    def _linear(self):
+        for x_field in self.x_fields:
+            correlations = [
+                (y_field, self._linear_fields(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
+            num_correlations = self.config['num_correlations']
+            if num_correlations:
+                self._log(f'\nTop {num_correlations} correlations with {x_field.name}:')
+                correlations = correlations[:num_correlations]
+            else:
+                self._log(f'\nCorrelations with {x_field.name}:')
+            self._print_field_weights(correlations, max_count=num_correlations)
 
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         if self.config['weight_frequency']:
@@ -207,19 +244,21 @@ class Regression:
             return 'not weighted'
         return None
 
-    def _print_field_weights(self, fields_and_weights: list[tuple[str, float]], prefix: str = '- '):
+    def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
+                             max_count: int | None = None, min_weight: float = 0.0):
         fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
-        if self.config['num_correlations'] > 0:
-            fields_and_weights = fields_and_weights[:self.config['num_correlations']]
+        if max_count:
+            fields_and_weights = fields_and_weights[:max_count]
         for field, weight in fields_and_weights:
-            self._log(f'{prefix}{field}: {weight:.3f}')
+            if abs(weight) > min_weight:
+                self._log(f'{prefix}{field.name}: {weight:.3f}')
 
-    def _linear(self, field: Field) -> float:
-        x_field = self.config['x_field']
-        x = self.df[x_field]
-        y = self.df[field.name]
-        correl = self._weighted_correlation(x, y, self.df['Weight'])
-        if field.plot and self.config['plot']:
+    # correlations and
+    def _linear_fields(self, y_field: Field, x_field: Field) -> float:
+        x = self.df[x_field.key]
+        y = self.df[y_field.key]
+        correl = self._weighted_correlation(x, y)
+        if y_field.plot and x_field.plot and self.config['plot']:
             # noinspection PyTypeChecker
             x_min: float = x.min()
             # noinspection PyTypeChecker
@@ -245,18 +284,17 @@ class Regression:
                 plt.plot(polyline, poly2(polyline), color='red')
 
             weighted_by = self._weighted_by(include_unweighted=False)
+            title = f'{y_field.title} vs. {x_field.title}'
             if weighted_by:
-                title = f'{field.title} - {weighted_by}'
-            else:
-                title = field.title
+                title += f' - {weighted_by}'
 
             plt.scatter(x, y)
-            plt.xlabel(f'{x_field} (r = {correl:.2f})')
-            plt.ylabel(field.name)
+            plt.xlabel(f'{x_field.name} vs. {y_field.name} (r = {correl:.2f})')
+            plt.ylabel(y_field.name)
             plt.title(title)
             plt.tight_layout()
             if self.config['save_plots']:
-                plt.savefig(self._plot_filename(field), bbox_inches='tight')
+                plt.savefig(self._plot_filename(y_field, x_field), bbox_inches='tight')
             plt.show()
 
         return correl
@@ -264,41 +302,43 @@ class Regression:
     def _elastic_net(self):
         self._log(f'\nNon-zero ElasticNet weights with alpha {self.config['alpha']} '
                   f'and l1_ratio = {self.config['l1_ratio']}:')
-        for field in self.multi_y_fields:
+        for y_field in self.multi_y_fields:
             model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
                                  l1_ratio=self.config['l1_ratio'], fit_intercept=True,
                                  random_state=self.config['seed'])
-            model.fit(self.multi_x, self.df[field.name], sample_weight=self.df['Weight'])
-            self._print_multi_field_weights(field, model.coef_)
+            model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
+            self._print_multi_field_weights(y_field, model.coef_)
 
     def _bayesian(self):
         min_weight = self.config['min_bayesian_weight'] if self.config['min_bayesian_weight'] else 0
         self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
-        for field in self.multi_y_fields:
+        for y_field in self.multi_y_fields:
             model = BayesianRidge()
-            model.fit(self.multi_x, self.df[field.name], sample_weight=self.df['Weight'])
-            self._print_multi_field_weights(field, model.coef_, min_weight)
+            model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
+            self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _ard(self):
         min_weight = self.config['min_ard_weight'] if self.config['min_ard_weight'] else 0
         self._log(f'\nARD weights with magnitude > {min_weight}:')
-        for field in self.multi_y_fields:
+        for y_field in self.multi_y_fields:
             weights_sqrt = np.sqrt(np.array(self.df['Weight']))
-            X_weighted = self.multi_x * weights_sqrt[:, np.newaxis]
-            y_weighted = self.df[field.name] * weights_sqrt
+            X_weighted = self.multi_x_scaled * weights_sqrt[:, np.newaxis]
+            y_weighted = self.df[y_field.key] * weights_sqrt
             model = ARDRegression()
             model.fit(X_weighted, y_weighted)
-            self._print_multi_field_weights(field, model.coef_, min_weight)
+            self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
-        field_weights = [(self.multi_x_field_names[i], weight) for i, weight in enumerate(weights) if
-                         abs(weight) > min_weight]
+        field_weights = [(self.multi_x_fields[i], weight) for i, weight in enumerate(weights)
+                         if abs(weight) > min_weight]
         if field_weights:
             self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix=' -- ')
 
-    def _plot_filename(self, field: Field):
-        return f'{field.name.lower().replace(' ', '_')}_{self._base_filename()}.png'
+    def _plot_filename(self, y_field: Field, x_field: Field):
+        y_field_name = y_field.key.lower().replace(' ', '_')
+        x_field_name = x_field.key.lower().replace(' ', '_')
+        return f'{y_field_name}_{x_field_name}_{self._base_filename()}.png'
 
     def _log_filename(self):
         return f'results_{self._base_filename()}.txt'
@@ -312,9 +352,9 @@ class Regression:
             s.append('usage')
         return '_'.join(s)
 
-    @staticmethod
-    def _weighted_correlation(x, y, weights):
+    def _weighted_correlation(self, x, y):
         """Calculates the weighted Pearson correlation coefficient."""
+        weights = self.df['Weight']
         # Compute weighted means
         mean_x = np.average(x, weights=weights)
         mean_y = np.average(y, weights=weights)
