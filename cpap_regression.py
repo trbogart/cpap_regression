@@ -18,7 +18,13 @@ class Field:
     name: str
     title: str
     plot: bool
-    ignored: bool
+    y_field: bool
+    x_field: bool
+    multi_x_field: bool
+    multi_y_field: bool
+
+    def is_used(self) -> bool:
+        return self.y_field or self.x_field or self.multi_x_field
 
     @classmethod
     def from_config(cls, field_config: dict):
@@ -26,8 +32,13 @@ class Field:
         name = field_config['name'] if 'name' in field_config else key
         title = field_config['title'] if 'title' in field_config else name
         plot = field_config['plot'] if 'plot' in field_config else False
-        ignored = field_config['ignored'] if 'ignored' in field_config else False
-        return cls(key, name, title, plot, ignored)
+        y_field = field_config['y_field'] if 'y_field' in field_config else False
+        x_field = field_config['x_field'] if 'x_field' in field_config else False
+        multi_x_field = field_config['multi_x_field'] if 'multi_x_field' in field_config else False
+        multi_y_field = y_field and not multi_x_field
+        if x_field and y_field:
+            raise ValueError(f'Field {key} enabled for both x and y field')
+        return cls(key, name, title, plot, y_field, x_field, multi_x_field, multi_y_field)
 
 
 class Regression:
@@ -37,10 +48,14 @@ class Regression:
             # Use safe_load to avoid executing arbitrary code from the file
             self.config = yaml.safe_load(file)
 
-        self.y_fields = self._get_fields('y_fields')
-        self.x_fields = self._get_fields('x_fields')
-        self.multi_x_fields = self._get_fields('multi_x_fields')
-        self.multi_y_fields = [field for field in self.y_fields if field not in self.multi_x_fields]
+        self.all_fields = [field for field_config in self.config['fields']
+                           if (field := Field.from_config(field_config)).is_used()]
+        assert len(self.all_fields) == len(set([field.key for field in self.all_fields]))
+
+        self.y_fields = [field for field in self.all_fields if field.y_field]
+        self.x_fields =  [field for field in self.all_fields if field.x_field]
+        self.multi_x_fields = [field for field in self.all_fields if field.multi_x_field]
+        self.multi_y_fields = [field for field in self.all_fields if field.multi_y_field]
 
         self.df = pd.read_csv(self.config['filename'])
 
@@ -185,7 +200,8 @@ class Regression:
             self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
                       f'{total_weight:.2f} total weight): {', '.join(dates)}')
 
-        self._next_pressure()
+        if self.config['next_pressure']['enabled']:
+            self._next_pressure()
 
         if len(self.df) < 2:
             self._log(f'Minimum N=2')
@@ -198,7 +214,7 @@ class Regression:
         if self.config['linear']:
             self._linear()
 
-        if self.config['elastic_net']:
+        if self.config['elastic_net']['enabled']:
             self._elastic_net()
 
         if self.config['bayesian']:
@@ -208,18 +224,16 @@ class Regression:
             self._ard()
 
     def _all_correlations(self):
-        all_fields = {field.key: field for field in chain(self.multi_x_fields, self.y_fields, self.x_fields)}
-        all_field_names = list(all_fields.keys())
         correlations = []
-        for i, field_key1 in enumerate(all_field_names):
-            for j, field_key2 in enumerate(islice(all_field_names, i)):
-                correlation = self._weighted_correlation(self.df[field_key1], self.df[field_key2])
-                correlations.append((all_fields[field_key1], all_fields[field_key2], correlation))
+        for i, field1 in enumerate(self.all_fields):
+            for field2 in islice(self.all_fields, i):
+                correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key])
+                correlations.append((field1, field2, correlation))
         correlations.sort(key=lambda t: abs(t[2]), reverse=True)
         correlations = correlations[:self.config['num_all_correlations']]
         self._log(f'\nTop {self.config['num_all_correlations']} correlations')
         for field1, field2, correlation in correlations:
-            print(f'- {' and '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
+            print(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
 
     def _linear(self):
         for x_field in self.x_fields:
@@ -289,7 +303,7 @@ class Regression:
                 title += f' - {weighted_by}'
 
             plt.scatter(x, y)
-            plt.xlabel(f'{x_field.name} vs. {y_field.name} (r = {correl:.2f})')
+            plt.xlabel(f'{y_field.name} vs. {x_field.name} (r = {correl:.2f})')
             plt.ylabel(y_field.name)
             plt.title(title)
             plt.tight_layout()
@@ -300,12 +314,13 @@ class Regression:
         return correl
 
     def _elastic_net(self):
-        self._log(f'\nNon-zero ElasticNet weights with alpha {self.config['alpha']} '
-                  f'and l1_ratio = {self.config['l1_ratio']}:')
+        config = self.config['elastic_net']
+        self._log(f'\nNon-zero ElasticNet weights with alpha {config['alpha']} '
+                  f'and l1_ratio = {config['l1_ratio']}:')
         for y_field in self.multi_y_fields:
-            model = SGDRegressor(penalty="elasticnet", alpha=self.config['alpha'],
-                                 l1_ratio=self.config['l1_ratio'], fit_intercept=True,
-                                 random_state=self.config['seed'])
+            model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
+                                 l1_ratio=config['l1_ratio'], fit_intercept=True,
+                                 random_state=config['seed'])
             model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
             self._print_multi_field_weights(y_field, model.coef_)
 
@@ -394,16 +409,17 @@ class Regression:
         target_pressure = np.mean([self.min_pressure, self.max_pressure]) * (len(df) + 1) - df['Pressure'].sum()
         next_pressure = self.min_pressure
         best_score = float('inf')
+        config = self.config['next_pressure']
 
         for pressure in self.valid_pressures:
             pressure_weight = pressure_weights.get(pressure, 0)
-            pressure_adjustment = abs(target_pressure - pressure) * self.config['target_pressure_weight']
+            pressure_adjustment = abs(target_pressure - pressure) * config['target_pressure_weight']
             if pressure == self.last_pressure:
-                last_pressure_adjustment = self.config['last_pressure_boost']
+                last_pressure_adjustment = config['last_pressure_boost']
             else:
                 last_pressure_adjustment = 0
-            if self.config['next_pressure_random']:
-                random_adjustment = random.random() * self.config['next_pressure_random']
+            if config['random_weight']:
+                random_adjustment = random.random() * config['random_weight']
             else:
                 random_adjustment = 0
             score = pressure_weight + pressure_adjustment - last_pressure_adjustment + random_adjustment
