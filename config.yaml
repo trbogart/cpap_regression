@@ -2,9 +2,9 @@ filename: cpap.csv # CSV file
 seed: 42 # random seed (used for ElasticNet)
 print_filter_details: false # print details for configuration-based filtering
 min_pressure:  # optional min Pressure (defaults to dataset min)
-max_pressure: # optional max Pressure (defaults to dataset max)
+max_pressure:  # optional max Pressure (defaults to dataset max)
 max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
-min_date:  # optional min date in yyyy-mm-dd format
+min_date: 2026-04-20 # optional min date in yyyy-mm-dd format
 max_date:  # optional max date in yyyy-mm-dd format
 max_leak_rate: 1.6 # optional max AvgLR
 min_usage: 6.0 # optional min Usage (hrs)

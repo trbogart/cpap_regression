@@ -58,6 +58,8 @@ class Regression:
         if new_count < count:
             self._log(f'Dropped {count - len(self.df)} rows based on Date')
             count = new_count
+        self.min_date_time = self.df['DateTime'].iloc[0]
+        self.max_date_time = self.df['DateTime'].iloc[-1]
 
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
@@ -125,8 +127,8 @@ class Regression:
             print(s, file=self.log_file)
 
     def _dates_string(self):
-        days = (self.df['DateTime'].iloc[-1] - self.df['DateTime'].iloc[0]).days + 1
-        return f'between {self.df['Date'].iloc[0]} and {self.df['Date'].iloc[-1]} ({days} days)'
+        days = (self.max_date_time - self.min_date_time).days + 1
+        return f'between {self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')} ({days} days)'
 
     def _filter_config(self, dates: set, field: str, config_key: str) -> set:
         threshold = self.config[config_key]
