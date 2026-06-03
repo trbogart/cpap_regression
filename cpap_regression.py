@@ -98,8 +98,7 @@ class Regression:
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
         if not self.config['print_filter_details'] and len(dates) < count:
-            self._log(f'Dropped {count - len(dates)} rows based on configured filters '
-                      f'(use print_filter_details for details)')
+            self._log(f'Dropped {count - len(dates)} rows based on configured filters')
 
         self.pressure = self.df['Pressure']
         # noinspection PyTypeChecker
