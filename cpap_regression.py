@@ -316,21 +316,21 @@ class Regression:
                     f'(new mean {avg_pressure:.3f})')
 
         pressure_counts = df['Pressure'].value_counts(ascending=True)
-        target_pressure = (self.min_pressure + self.max_pressure) / 2
-        sum_pressures = df['Pressure'].sum()
-        new_size = len(df) + 1
+        target_pressure = np.mean([self.min_pressure, self.max_pressure]) * (len(df) + 1) - df['Pressure'].sum()
+        target_pressure_weight = self.config['target_pressure_weight']
         last_pressure = df['Pressure'].iloc[-1]
         next_pressure = self.min_pressure
-        base_pressure_score = self.config['base_pressure_score']
-        last_pressure_boost = self.config['last_pressure_boost']
         best_score = float('inf')
 
         for pressure in self.valid_pressures:
-            score = base_pressure_score + abs((sum_pressures + pressure) / new_size - target_pressure)
-            new_count = pressure_counts.get(pressure, 0) + 1
-            if pressure != last_pressure:
-                new_count = max(1, new_count - last_pressure_boost)
-            score *= new_count
+            pressure_count = pressure_counts.get(pressure, 0)
+            pressure_adjustment = abs(target_pressure - pressure) * target_pressure_weight
+            if pressure == last_pressure:
+                last_pressure_adjustment = self.config['last_pressure_boost']
+            else:
+                last_pressure_adjustment = 0
+            score = pressure_count + pressure_adjustment - last_pressure_adjustment
+            print(f'??? {pressure}: {score:.2f} = {pressure_count} + {pressure_adjustment:.2f} - {last_pressure_adjustment}')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
