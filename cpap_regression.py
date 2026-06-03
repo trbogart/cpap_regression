@@ -57,7 +57,7 @@ class Regression:
         self.multi_x_fields = [field for field in self.all_fields if field.multi_x_field]
         self.multi_y_fields = [field for field in self.all_fields if field.multi_y_field]
 
-        self.df = pd.read_csv(self.config['filename'])
+        self.df = pd.read_csv(self.config['data_file'])
 
         self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
         self.df['Timestamp'] = self.df['DateTime'].astype('int64') / 1e9
@@ -137,11 +137,11 @@ class Regression:
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
-        if self.config['weight_frequency']:
+        if self.config['weighted']['frequency']:
             pressure_counts = self.pressure.value_counts()
             self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.pressure]
 
-        if self.config['weight_usage']:
+        if self.config['weighted']['usage']:
             self.df['Weight'] *= self.df['Usage']
 
     def _get_fields(self, config: str) -> list[Field]:
@@ -258,21 +258,24 @@ class Regression:
         if num_correlations:
             s.append(f'Top {num_correlations} correlations')
         else:
-            s.append('Correlations')
+            s.append('All correlations')
         if field:
-            s.append(f'with {field.name}')
+            s.append(f'for {field.name}')
+        else:
+            s.append('between all enabled fields')
         if min_correlation:
-            s.append(f'> {min_correlation}')
+            s.append(f'with magnitude > {min_correlation}')
 
         self._log(f'\n{' '.join(s)}')
 
 
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
-        if self.config['weight_frequency']:
-            if self.config['weight_usage']:
+        config = self.config['weighted']
+        if config['frequency']:
+            if config['usage']:
                 return 'weighted by inverse frequency and usage'
             return 'weighted by inverse frequency'
-        if self.config['weight_usage']:
+        if config['usage']:
             return 'weighted by usage'
         if include_unweighted:
             return 'not weighted'
@@ -382,9 +385,9 @@ class Regression:
     def _base_filename(self) -> str:
         # noinspection PyStringConversionWithoutDunderMethod
         s = [str(self.df['Date'].max())]
-        if self.config['weight_frequency']:
+        if self.config['weighted']['frequency']:
             s.append('freq')
-        if self.config['weight_usage']:
+        if self.config['weighted']['usage']:
             s.append('usage')
         return '_'.join(s)
 
@@ -418,7 +421,7 @@ class Regression:
                     f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
                     f'(new mean {avg_pressure:.3f})')
 
-        if self.config['weight_usage']:
+        if self.config['weighted']['usage']:
             # weight by usage (same scale as row count)
             avg_usage = df['Usage'].mean()
             pressure_weights = {

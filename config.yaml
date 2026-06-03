@@ -1,4 +1,4 @@
-filename: cpap.csv # CSV file
+data_file: cpap.csv # CSV file
 save_logs: true # save logs
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
@@ -33,8 +33,9 @@ bayesian:
 ard:
   enabled: true # perform ARD Bayesian regression
   min_weight: 0.1 # optional minimum ARD weight to print
-weight_frequency: false # true to weight by inverse frequency for pressure
-weight_usage: false # true to weight by usage
+weighted:
+  frequency: false # true to weight by inverse frequency for pressure
+  usage: false # true to weight by usage
 next_pressure:
   enabled: true
   target_pressure_weight: 1.0 # weight for distance from pressure to center mean when calculating next pressure (1 pressure = 1 count if 1.0)
