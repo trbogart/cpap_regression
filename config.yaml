@@ -4,8 +4,8 @@ filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date: 2026-04-20 # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure:  # optional min Pressure (defaults to dataset min)
-  max_pressure:  # optional max Pressure (defaults to dataset max)
+  min_pressure:  # optional min Pressure
+  max_pressure:  # optional max Pressure
   max_leak_rate: 1.6 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
@@ -52,11 +52,9 @@ next_pressure:
 fields:
   - key: Comb FL
     name: Combined FL
-    plot: false
     y_field: false # disable
   - key: FLS
     name: Flow Limitation Score
-    plot: false
     y_field: false # disable
   - key: GI
     name: Glasgow Index
