@@ -53,11 +53,11 @@ fields:
   - key: Comb FL
     name: Combined FL
     plot: false
-    y_field: false # strongly correlated with other metrics
+    y_field: false # disable
   - key: FLS
     name: Flow Limitation Score
     plot: false
-    y_field: false # strongly correlated with other metrics
+    y_field: false # disable
   - key: GI
     name: Glasgow Index
     plot: true
@@ -69,15 +69,15 @@ fields:
     name: Brief Obstruction Index
     plot: true
     y_field: true
-  - key: Usage
   - key: AHI
-    y_field: false # strongly correlated with RDI
+    y_field: false # disable
   - key: CAI
     y_field: true
   - key: RDI
-    y_field: true
+    y_field: false
   - key: 95%FL
     name: 95% Flow Limitation
+    y_field: true
   - key: AvgLR
     name: Average Leak Rate
     y_field: true

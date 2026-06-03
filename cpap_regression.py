@@ -21,10 +21,14 @@ class Field:
     y_field: bool
     x_field: bool
     multi_x_field: bool
-    multi_y_field: bool
 
-    def is_used(self) -> bool:
+    @property
+    def enabled(self) -> bool:
         return self.y_field or self.x_field or self.multi_x_field
+
+    @property
+    def multi_y_field(self) -> bool:
+        return self.y_field and not self.multi_x_field
 
     @classmethod
     def from_config(cls, field_config: dict):
@@ -35,10 +39,9 @@ class Field:
         y_field = field_config['y_field'] if 'y_field' in field_config else False
         x_field = field_config['x_field'] if 'x_field' in field_config else False
         multi_x_field = field_config['multi_x_field'] if 'multi_x_field' in field_config else False
-        multi_y_field = y_field and not multi_x_field
         if x_field and y_field:
             raise ValueError(f'Field {key} enabled for both x and y field')
-        return cls(key, name, title, plot, y_field, x_field, multi_x_field, multi_y_field)
+        return cls(key, name, title, plot, y_field, x_field, multi_x_field)
 
 
 class Regression:
@@ -48,14 +51,14 @@ class Regression:
             # Use safe_load to avoid executing arbitrary code from the file
             self.config = yaml.safe_load(file)
 
-        self.all_fields = [field for field_config in self.config['fields']
-                           if (field := Field.from_config(field_config)).is_used()]
-        assert len(self.all_fields) == len(set([field.key for field in self.all_fields]))
+        self.all_fields = [Field.from_config(field_config) for field_config in self.config['fields']]
+        self.enabled_fields = [field for field in self.all_fields if field.enabled]
+        assert len(self.enabled_fields) == len(set([field.key for field in self.enabled_fields]))
 
-        self.y_fields = [field for field in self.all_fields if field.y_field]
-        self.x_fields =  [field for field in self.all_fields if field.x_field]
-        self.multi_x_fields = [field for field in self.all_fields if field.multi_x_field]
-        self.multi_y_fields = [field for field in self.all_fields if field.multi_y_field]
+        self.y_fields = [field for field in self.enabled_fields if field.y_field]
+        self.x_fields = [field for field in self.enabled_fields if field.x_field]
+        self.multi_x_fields = [field for field in self.enabled_fields if field.multi_x_field]
+        self.multi_y_fields = [field for field in self.enabled_fields if field.multi_y_field]
 
         self.df = pd.read_csv(self.config['data_file'])
 
@@ -126,13 +129,15 @@ class Regression:
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
         if not self.config['filter']['verbose'] and len(dates) < count:
-            self._log(f'Dropped {count - len(dates)} rows based on configured filters')
+            self._log(f'Dropped {count - len(dates)} rows with configured filters')
 
         self.pressure = self.df['Pressure']
         # noinspection PyTypeChecker
-        self.min_pressure: float = filter_config['min_pressure'] if filter_config['min_pressure'] else self.pressure.min()
+        self.min_pressure: float = filter_config['min_pressure'] if filter_config[
+            'min_pressure'] else self.pressure.min()
         # noinspection PyTypeChecker
-        self.max_pressure: float = filter_config['max_pressure'] if filter_config['max_pressure'] else self.pressure.max()
+        self.max_pressure: float = filter_config['max_pressure'] if filter_config[
+            'max_pressure'] else self.pressure.max()
         self.valid_pressures = [p / 5 for p in range(int(self.min_pressure * 5), int(self.max_pressure * 5) + 1)]
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
@@ -145,7 +150,8 @@ class Regression:
             self.df['Weight'] *= self.df['Usage']
 
     def _get_fields(self, config: str) -> list[Field]:
-        return [field for field_config in self.config[config] if not (field := Field.from_config(field_config)).is_used()]
+        return [field for field_config in self.config[config] if
+                not (field := Field.from_config(field_config)).enabled()]
 
     def _log(self, s: str):
         print(s)
@@ -230,8 +236,8 @@ class Regression:
         min_correlation = config['min_correlation']
         num_correlations = config['num_correlations']
 
-        for i, field1 in enumerate(self.all_fields):
-            for field2 in islice(self.all_fields, i):
+        for i, field1 in enumerate(self.enabled_fields):
+            for field2 in islice(self.enabled_fields, i):
                 correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key])
                 if not min_correlation or correlation > min_correlation:
                     correlations.append((field1, field2, correlation))
@@ -250,10 +256,12 @@ class Regression:
                 (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
             num_correlations = config['num_correlations']
             min_correlation = config['min_correlation']
-            self._print_correlation_summary(field = x_field, num_correlations = num_correlations, min_correlation = min_correlation)
+            self._print_correlation_summary(field=x_field, num_correlations=num_correlations,
+                                            min_correlation=min_correlation)
             self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
 
-    def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None, min_correlation: float | None = None):
+    def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None,
+                                   min_correlation: float | None = None):
         s = []
         if num_correlations:
             s.append(f'Top {num_correlations} correlations')
@@ -268,7 +276,6 @@ class Regression:
 
         self._log(f'\n{' '.join(s)}')
 
-
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         config = self.config['weighted_by']
         if config['frequency']:
@@ -282,7 +289,7 @@ class Regression:
         return None
 
     def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
-                             max_count: int | None = None, min_weight: float |None = 0):
+                             max_count: int | None = None, min_weight: float | None = 0):
         fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
         if max_count:
             fields_and_weights = fields_and_weights[:max_count]
