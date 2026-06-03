@@ -217,10 +217,10 @@ class Regression:
         if self.config['elastic_net']['enabled']:
             self._elastic_net()
 
-        if self.config['bayesian']:
+        if self.config['bayesian']['enabled']:
             self._bayesian()
 
-        if self.config['ard']:
+        if self.config['ard']['enabled']:
             self._ard()
 
     def _all_correlations(self):
@@ -241,12 +241,13 @@ class Regression:
             correlations = [
                 (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
             num_correlations = config['num_correlations']
+            suffix = f' > {config['min_correlation']}' if config['min_correlation'] else ''
             if num_correlations:
-                self._log(f'\nTop {num_correlations} correlations with {x_field.name}:')
+                self._log(f'\nTop {num_correlations} correlations with {x_field.name}{suffix}:')
                 correlations = correlations[:num_correlations]
             else:
-                self._log(f'\nCorrelations with {x_field.name}:')
-            self._print_field_weights(correlations, max_count=num_correlations)
+                self._log(f'\nCorrelations with {x_field.name}{suffix}:')
+            self._print_field_weights(correlations, max_count=num_correlations, min_weight=config['min_correlation'])
 
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         if self.config['weight_frequency']:
@@ -260,12 +261,12 @@ class Regression:
         return None
 
     def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
-                             max_count: int | None = None, min_weight: float = 0.0):
+                             max_count: int | None = None, min_weight: float |None = 0):
         fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
         if max_count:
             fields_and_weights = fields_and_weights[:max_count]
         for field, weight in fields_and_weights:
-            if abs(weight) > min_weight:
+            if not min_weight or abs(weight) > min_weight:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
     # correlations and
@@ -327,7 +328,7 @@ class Regression:
             self._print_multi_field_weights(y_field, model.coef_)
 
     def _bayesian(self):
-        min_weight = self.config['min_bayesian_weight'] if self.config['min_bayesian_weight'] else 0
+        min_weight = self.config['bayesian']['min_weight'] if self.config['bayesian']['min_weight'] else 0
         self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
         for y_field in self.multi_y_fields:
             model = BayesianRidge()
@@ -335,7 +336,7 @@ class Regression:
             self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _ard(self):
-        min_weight = self.config['min_ard_weight'] if self.config['min_ard_weight'] else 0
+        min_weight = self.config['ard']['min_weight'] if self.config['ard']['min_weight'] else 0
         self._log(f'\nARD weights with magnitude > {min_weight}:')
         for y_field in self.multi_y_fields:
             weights_sqrt = np.sqrt(np.array(self.df['Weight']))
