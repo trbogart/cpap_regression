@@ -1,3 +1,4 @@
+import sys
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -37,17 +38,45 @@ class Regression:
         self.df['Timestamp'] = self.df['DateTime'].astype('int64') / 1e9
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
+
+        count = len(self.df)
+        if self.config['min_date']:
+            min_date = pd.to_datetime(self.config['min_date'], format='%Y-%m-%d')
+            self.df.drop(self.df[self.df['DateTime'] < min_date].index, inplace=True)
+        if self.config['max_date']:
+            max_date = pd.to_datetime(self.config['max_date'], format='%Y-%m-%d')
+            self.df.drop(self.df[self.df['DateTime'] > max_date].index, inplace=True)
         if self.config['max_days']:
             # trim data for max days (before drop NA)
             self.df = self.df.tail(self.config['max_days'])
 
-        # pressure field can be empty or contain an exclusion note
+        # Dates have to be known before opening log file (ignoring value filtering)
+        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+        new_count = len(self.df)
+        self._log(f'{count} rows')
+        if new_count < count:
+            self._log(f'Dropped {count - len(self.df)} rows based on Date')
+            count = new_count
+
+        # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
 
-        # weight field is 1 by default (mostly intended for manual exclusion)
+        # Weight field is 1 by default (mostly intended for manual exclusion)
         self.df['Weight'] = self.df['Weight'].fillna(1)
 
+        # drop invalid data (including 0 weight, which is possible with manual weighting)
+        self.df.drop(self.df[self.df['Weight'] == 0].index, inplace=True)
         self.df.dropna(inplace=True)
+        new_count = len(self.df)
+        if new_count < count:
+            self._log(f'Dropped {count - len(self.df)} rows with invalid data')
+            count = new_count
+
+        if count == 0:
+            print('No data')
+            sys.exit(1)
+
+        # get last pressure before config filtering so next pressure logic will work correctly
         self.last_pressure = self.df['Pressure'].iloc[-1]
 
         # convert time fields from H:MM to float hours
@@ -60,10 +89,18 @@ class Regression:
         self.df['Efficiency'] = self.df['Sleep'] / self.df['Usage']
         self.df['RDI'] = self.df['AHI'] + self.df['RERA']
 
-        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+        # filter by config
+        dates = set(self.df['Date'])
+        dates = self._filter_config(dates, 'Pressure', 'min_pressure')
+        dates = self._filter_config(dates, 'Pressure', 'max_pressure')
+        dates = self._filter_config(dates, 'AvgLR', 'max_leak_rate')
+        dates = self._filter_config(dates, 'Usage', 'min_usage')
+        dates = self._filter_config(dates, 'Sleep', 'min_sleep')
+        dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
+        if not self.config['print_filter_details'] and len(dates) < count:
+            self._log(f'Dropped {count - len(dates)} rows based on configured filters '
+                      f'(use print_filter_details for details)')
 
-        # filter by config or by zero weight (possible with manual weighting)
-        self._filter()
         self.pressure = self.df['Pressure']
         # noinspection PyTypeChecker
         self.min_pressure: float = self.config['min_pressure'] if self.config['min_pressure'] else self.pressure.min()
@@ -91,33 +128,16 @@ class Regression:
         days = (self.df['DateTime'].iloc[-1] - self.df['DateTime'].iloc[0]).days + 1
         return f'between {self.df['Date'].iloc[0]} and {self.df['Date'].iloc[-1]} ({days} days)'
 
-    def _filter(self):
-        # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'Unfiltered N={len(self.df)} {self._dates_string()}')
-        orig_dates = set(self.df['Date'])
-        dates = self._filter_column(orig_dates, 'Weight')  # filter zero weights
-        dates = self._filter_column(dates, 'Pressure', 'min_pressure')
-        dates = self._filter_column(dates, 'Pressure', 'max_pressure')
-        dates = self._filter_column(dates, 'AvgLR', 'max_leak_rate')
-        dates = self._filter_column(dates, 'Usage', 'min_usage')
-        dates = self._filter_column(dates, 'Sleep', 'min_sleep')
-        dates = self._filter_column(dates, 'Efficiency', 'min_sleep_efficiency')
-        self._log(f'Dropped {len(orig_dates) - len(dates)} rows total')
-
-    def _filter_column(self, dates: set, field: str, config_key: str | None = None) -> set:
-        if config_key is not None:
-            threshold = self.config[config_key]
-            if threshold is None:
-                return dates
-            if config_key.startswith('min_'):
-                filtered_df = self.df[self.df[field] >= threshold]
-            elif config_key.startswith('max_'):
-                filtered_df = self.df[self.df[field] <= threshold]
-            else:
-                raise ValueError(f'Invalid config name: {config_key}')
+    def _filter_config(self, dates: set, field: str, config_key: str) -> set:
+        threshold = self.config[config_key]
+        if threshold is None:
+            return dates
+        if config_key.startswith('min_'):
+            filtered_df = self.df[self.df[field] >= threshold]
+        elif config_key.startswith('max_'):
+            filtered_df = self.df[self.df[field] <= threshold]
         else:
-            threshold = 0.0
-            filtered_df = self.df[self.df[field] > threshold]
+            raise ValueError(f'Invalid config name: {config_key}')
 
         new_dates = set(filtered_df['Date'])
         removed_dates = dates - new_dates
@@ -134,7 +154,7 @@ class Regression:
             if num_removed > 0:
                 for _, row in removed_rows.iterrows():
                     line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
-                    if field not in {'Pressure', 'Weight'}:
+                    if field != 'Pressure':
                         line += f', {field}={row[field]:.2f}'
                     self._log(line)
 
@@ -143,7 +163,7 @@ class Regression:
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'N={len(self.df)} {self._dates_string()} - {self._weighted_by()}')
+        self._log(f'\nN={len(self.df)} {self._dates_string()} - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
@@ -154,6 +174,10 @@ class Regression:
                       f'{total_weight:.2f} total weight): {', '.join(dates)}')
 
         self._next_pressure()
+
+        if len(self.df) < 2:
+            self._log(f'Minimum N=2')
+            sys.exit(0)
 
         # Correlation and linear regression
         if self.config['linear']:

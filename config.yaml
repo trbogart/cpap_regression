@@ -1,6 +1,6 @@
 filename: cpap.csv # CSV file
 seed: 42 # random seed (used for ElasticNet)
-print_filter_details: false # print filter details
+print_filter_details: false # print details for configuration-based filtering
 min_date:  # optional min date in yyyy-mm-dd format
 max_date:  # optional max date in yyyy-mm-dd format
 max_days: 56 # optional maximum number of days to include (8 weeks, applied after min_date and max_date)
