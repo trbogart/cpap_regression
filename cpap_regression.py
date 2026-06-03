@@ -316,43 +316,23 @@ class Regression:
                     f'(new mean {avg_pressure:.3f})')
 
         pressure_counts = df['Pressure'].value_counts(ascending=True)
-
-        min_count = pressure_counts.iloc[0]
-        if any(pressure_counts.get(pressure, 0) == 0 for pressure in self.valid_pressures):
-            # no data for at least 1 valid pressure in range
-            min_count = 0
-
-        candidate_count = min_count + self.config['pressure_count_leeway']
-        candidate_pressures = [pressure for pressure in self.valid_pressures if
-                               pressure_counts.get(pressure, 0) <= candidate_count]
-
+        target_pressure = (self.min_pressure + self.max_pressure) / 2
+        sum_pressures = df['Pressure'].sum()
+        new_size = len(df) + 1
         last_pressure = df['Pressure'].iloc[-1]
+        next_pressure = self.min_pressure
+        base_pressure_score = self.config['base_pressure_score']
+        best_score = float('inf')
 
-        print('??? candidate_pressures:', candidate_pressures)
-
-        def get_next_pressure() -> float:
-            if len(candidate_pressures) == 1:
-                return candidate_pressures[0]
-            if last_pressure in candidate_pressures:
-                # repeat previous pressure if it has the same count
-                return last_pressure
-            target_pressure = (self.min_pressure + self.max_pressure) / 2
-            sum_pressures = df['Pressure'].sum()
-            new_count = len(df) + 1
-            best_pressure = self.min_pressure
-            best_pressure_distance = float('inf')
-
-            for pressure in candidate_pressures:
-                pressure_distance = abs((sum_pressures + pressure) / new_count - target_pressure)
-                if pressure == last_pressure:
-                    pressure_distance *= self.config['current_pressure_boost']
-                if pressure_distance < best_pressure_distance:
-                    best_pressure = pressure
-                    best_pressure_distance = pressure_distance
-
-            return best_pressure
-
-        next_pressure = get_next_pressure()
+        for pressure in self.valid_pressures:
+            score = base_pressure_score + abs((sum_pressures + pressure) / new_size - target_pressure)
+            new_count = (pressure_counts.get(pressure, 0) + 1)
+            if pressure == last_pressure:
+                new_count -= 1
+            score *= new_count
+            if score < best_score:
+                next_pressure = pressure
+                best_score = score
 
         if next_pressure < last_pressure:
             self._log(f'Decrease Pressure from {last_pressure} to {next_pressure}')
