@@ -13,12 +13,12 @@ filter:
   verbose: false # print details for configuration-based filtering
 all_correlations:
   enabled: true
-  num_correlations: # optional number of correlations to display between all fields
-  min_correlation: 0.3 # minimum correlation size
+  num_correlations: # optional number of correlations to display between all fields (null to display all)
+  min_correlation: 0.3 # optional minimum correlation to display (default 0)
 linear:
   enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
-  min_correlation: 0.1 # min correlation to display (default 0)
+  min_correlation: 0.1 # optional minimum correlation to display (default 0)
   plot: false # true to enable plotting linear (and quadratic if plot_quadratic) regressions if enabled for both fields
   plot_quadratic: false # include quadratic regression in plots
   save_plots: false # save plots
@@ -26,7 +26,7 @@ elastic_net:
   enabled: false # true to enable ElasticNet regression using fields with multi_x_field
   alpha: 0.2 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
-  seed: 42
+  seed: 42 # random seed
 bayesian:
   enabled: false # perform BayesianRidge regression using fields with multi_x_field
   min_weight: 0.1 # optional minimum BayesianRidge weight to print
