@@ -316,19 +316,25 @@ class Regression:
                     f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
                     f'(new mean {avg_pressure:.3f})')
 
-        pressure_counts = df['Pressure'].value_counts()
+        if self.config['weight_usage']:
+            avg_usage = df['Usage'].mean()
+            pressure_weights = {
+                pressure: df[df['Pressure'] == pressure]['Usage'].sum() / avg_usage for pressure in self.valid_pressures
+            }
+        else:
+            pressure_weights = df['Pressure'].value_counts()
         target_pressure = np.mean([self.min_pressure, self.max_pressure]) * (len(df) + 1) - df['Pressure'].sum()
         next_pressure = self.min_pressure
         best_score = float('inf')
 
         for pressure in self.valid_pressures:
-            pressure_count = pressure_counts.get(pressure, 0)
+            pressure_weight = pressure_weights.get(pressure, 0)
             pressure_adjustment = abs(target_pressure - pressure) * self.config['target_pressure_weight']
             if pressure == self.last_pressure:
                 last_pressure_adjustment = self.config['last_pressure_boost']
             else:
                 last_pressure_adjustment = 0
-            score = pressure_count + pressure_adjustment - last_pressure_adjustment
+            score = pressure_weight + pressure_adjustment - last_pressure_adjustment
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
