@@ -2,8 +2,8 @@ filename: cpap.csv # CSV file
 seed: 42
 print_filter_details: false # print filter details
 max_days: 42 # maximum number of days to include (6 weeks)
-min_pressure: # min Pressure
-max_pressure: # max Pressure
+min_pressure: # min Pressure (defaults to min in dataset)
+max_pressure: # max Pressure (defaults to max in dataset)
 max_leak_rate: 1.6 # max AvgLR
 min_usage: 6.0 # min Usage (hrs)
 min_sleep: 5.5 # min Sleep (hrs)
@@ -65,7 +65,7 @@ y_fields: # fields to calculate with optional title for plots and plot flag to a
     title: Periodicity (WAT)
   - name: Regul
     title: Regularity (WAT)
-multi_x_fields:
+multi_x_fields: # X fields for regularization
   - Pressure
   - AvgLR
   - Usage
