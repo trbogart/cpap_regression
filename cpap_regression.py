@@ -38,6 +38,7 @@ class Regression:
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df = self.df.sort_values(by='DateTime')
         if self.config['max_days']:
+            # trim data for max days (before drop NA)
             self.df = self.df.tail(self.config['max_days'])
 
         # pressure field can be empty or contain an exclusion note
@@ -67,7 +68,7 @@ class Regression:
         self.min_pressure: float = self.config['min_pressure'] if self.config['min_pressure'] else self.pressure.min()
         # noinspection PyTypeChecker
         self.max_pressure: float = self.config['max_pressure'] if self.config['max_pressure'] else self.pressure.max()
-        self.valid_pressures = [p/5 for p in range(int(self.min_pressure*5), int(self.max_pressure*5)+1)]
+        self.valid_pressures = [p / 5 for p in range(int(self.min_pressure * 5), int(self.max_pressure * 5) + 1)]
         self.multi_x_field_names = self.config['multi_x_fields']
         self.multi_x = StandardScaler().fit_transform(self.df[self.multi_x_field_names])
 
@@ -85,9 +86,13 @@ class Regression:
         if self.log_file:
             print(s, file=self.log_file)
 
+    def _dates_string(self):
+        days = (self.df['DateTime'].iloc[-1] - self.df['DateTime'].iloc[0]).days + 1
+        return f'between {self.df['Date'].iloc[0]} and {self.df['Date'].iloc[-1]} ({days} days)'
+
     def _filter(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'Unfiltered N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}')
+        self._log(f'Unfiltered N={len(self.df)} {self._dates_string()}')
         orig_dates = set(self.df['Date'])
         dates = self._filter_column(orig_dates, 'Weight')  # filter zero weights
         dates = self._filter_column(dates, 'Pressure', 'min_pressure')
@@ -137,8 +142,7 @@ class Regression:
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}'
-                  f' - {self._weighted_by()}')
+        self._log(f'N={len(self.df)} {self._dates_string()} - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
@@ -148,8 +152,6 @@ class Regression:
             self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
                       f'{total_weight:.2f} total weight): {', '.join(dates)}')
 
-        avg_pressure = self.pressure.mean()
-        self._log(f'Mean Pressure: {avg_pressure :.3f}')
         self._next_pressure()
 
         # Correlation and linear regression
@@ -301,13 +303,18 @@ class Regression:
     # noinspection PyTypeChecker
     def _next_pressure(self):
         df = self.df
+        avg_pressure = self.pressure.mean()
+        self._log(f'Mean Pressure: {avg_pressure :.3f}')
         if self.config['max_days']:
             min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['max_days'] - 1)
             if df.at[df.index[0], 'DateTime'] == min_date:
-                # noinspection PyStringConversionWithoutDunderMethod
-                self._log(f'Will drop {df.at[df.index[0], 'Date']} '
-                          f'(Pressure {df.at[df.index[0], 'Pressure']}) tomorrow')
                 df = df.iloc[1:]
+                avg_pressure = df['Pressure'].mean()
+                # noinspection PyStringConversionWithoutDunderMethod
+                self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
+                          f'(new mean {avg_pressure:.3f})')
+
+
         pressure_counts = df['Pressure'].value_counts(ascending=True)
 
         min_count = pressure_counts.iloc[0]
@@ -315,7 +322,9 @@ class Regression:
             min_count = 0
 
         candidate_count = min_count + self.config['pressure_count_leeway']
-        candidate_pressures = [pressure for pressure in self.valid_pressures if pressure_counts.get(pressure, 0) <= candidate_count]
+        candidate_pressures = [pressure for pressure in self.valid_pressures if
+                               pressure_counts.get(pressure, 0) <= candidate_count]
+
         last_pressure = df['Pressure'].iloc[-1]
 
         def get_next_pressure() -> float:
@@ -326,8 +335,8 @@ class Regression:
             if pressure_counts[last_pressure] == min_count:
                 # repeat previous pressure if it has the same count
                 return last_pressure
-            if df['Pressure'].mean() > (self.min_pressure + self.max_pressure) / 2:
-                # choose lowest pressure if mean above center
+            if avg_pressure > (self.min_pressure + self.max_pressure) / 2:
+                # choose lowest candidate pressure if mean above center
                 return min(candidate_pressures)
             # choose highest pressure if mean below center
             return max(candidate_pressures)
