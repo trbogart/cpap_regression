@@ -23,7 +23,8 @@ save_plots: false # save plots
 save_logs: true # save logs
 weight_frequency: false # true to weight by inverse frequency for pressure
 weight_usage: false # true to weight by usage
-base_pressure_score: 0.2 # base score for each pressure when selecting next pressure (higher value emphasizes counts over mean)
+base_pressure_score: 1 # base score for each pressure when selecting next pressure (positive, higher value emphasizes counts over mean)
+last_pressure_boost: 1 # treat last pressure as having this less count for selecting next pressure
 x_field: Pressure # X field for linear regression and plots
 y_fields: # fields to calculate with optional title for plots and plot flag to allow plotting if globally enabled
   - name: Comb FL

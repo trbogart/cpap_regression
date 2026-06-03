@@ -322,13 +322,14 @@ class Regression:
         last_pressure = df['Pressure'].iloc[-1]
         next_pressure = self.min_pressure
         base_pressure_score = self.config['base_pressure_score']
+        last_pressure_boost = self.config['last_pressure_boost']
         best_score = float('inf')
 
         for pressure in self.valid_pressures:
             score = base_pressure_score + abs((sum_pressures + pressure) / new_size - target_pressure)
-            new_count = (pressure_counts.get(pressure, 0) + 1)
-            if pressure == last_pressure:
-                new_count -= 1
+            new_count = pressure_counts.get(pressure, 0) + 1
+            if pressure != last_pressure:
+                new_count = max(1, new_count - last_pressure_boost)
             score *= new_count
             if score < best_score:
                 next_pressure = pressure
