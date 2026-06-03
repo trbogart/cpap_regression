@@ -36,7 +36,7 @@ class Regression:
         self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
         self.df['Timestamp'] = self.df['DateTime'].astype('int64') / 1e9
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
-        self.df = self.df.sort_values(by='DateTime')
+        self.df.sort_values(by='DateTime', inplace=True)
         if self.config['max_days']:
             # trim data for max days (before drop NA)
             self.df = self.df.tail(self.config['max_days'])
@@ -47,7 +47,8 @@ class Regression:
         # weight field is 1 by default (mostly intended for manual exclusion)
         self.df['Weight'] = self.df['Weight'].fillna(1)
 
-        self.df = self.df.dropna()
+        self.df.dropna(inplace=True)
+        self.last_pressure = self.df['Pressure'].iloc[-1]
 
         # convert time fields from H:MM to float hours
         self.df['Usage'] = pd.to_timedelta(self.df['Usage'] + ':00').dt.total_seconds() / 3600
@@ -315,17 +316,15 @@ class Regression:
                     f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
                     f'(new mean {avg_pressure:.3f})')
 
-        pressure_counts = df['Pressure'].value_counts(ascending=True)
+        pressure_counts = df['Pressure'].value_counts()
         target_pressure = np.mean([self.min_pressure, self.max_pressure]) * (len(df) + 1) - df['Pressure'].sum()
-        target_pressure_weight = self.config['target_pressure_weight']
-        last_pressure = df['Pressure'].iloc[-1]
         next_pressure = self.min_pressure
         best_score = float('inf')
 
         for pressure in self.valid_pressures:
             pressure_count = pressure_counts.get(pressure, 0)
-            pressure_adjustment = abs(target_pressure - pressure) * target_pressure_weight
-            if pressure == last_pressure:
+            pressure_adjustment = abs(target_pressure - pressure) * self.config['target_pressure_weight']
+            if pressure == self.last_pressure:
                 last_pressure_adjustment = self.config['last_pressure_boost']
             else:
                 last_pressure_adjustment = 0
@@ -334,10 +333,10 @@ class Regression:
                 next_pressure = pressure
                 best_score = score
 
-        if next_pressure < last_pressure:
-            self._log(f'Decrease Pressure from {last_pressure} to {next_pressure}')
-        elif next_pressure > last_pressure:
-            self._log(f'Increase Pressure from {last_pressure} to {next_pressure}')
+        if next_pressure < self.last_pressure:
+            self._log(f'Decrease Pressure from {self.last_pressure} to {next_pressure}')
+        elif next_pressure > self.last_pressure:
+            self._log(f'Increase Pressure from {self.last_pressure} to {next_pressure}')
         else:
             self._log(f'Leave Pressure at {next_pressure}')
 
