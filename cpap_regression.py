@@ -1,3 +1,4 @@
+import random
 import sys
 from dataclasses import dataclass
 
@@ -359,7 +360,11 @@ class Regression:
                 last_pressure_adjustment = self.config['last_pressure_boost']
             else:
                 last_pressure_adjustment = 0
-            score = pressure_weight + pressure_adjustment - last_pressure_adjustment
+            if self.config['next_pressure_random']:
+                random_adjustment = random.random() * self.config['next_pressure_random']
+            else:
+                random_adjustment = 0
+            score = pressure_weight + pressure_adjustment - last_pressure_adjustment + random_adjustment
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
