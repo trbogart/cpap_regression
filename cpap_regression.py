@@ -317,11 +317,13 @@ class Regression:
                     f'(new mean {avg_pressure:.3f})')
 
         if self.config['weight_usage']:
+            # weight by usage (same scale as row count)
             avg_usage = df['Usage'].mean()
             pressure_weights = {
                 pressure: df[df['Pressure'] == pressure]['Usage'].sum() / avg_usage for pressure in self.valid_pressures
             }
         else:
+            # weight by row count
             pressure_weights = df['Pressure'].value_counts()
         target_pressure = np.mean([self.min_pressure, self.max_pressure]) * (len(df) + 1) - df['Pressure'].sum()
         next_pressure = self.min_pressure
