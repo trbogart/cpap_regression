@@ -1,7 +1,7 @@
 filename: cpap.csv # CSV file
 seed: 42
 print_filter_details: false # print filter details
-max_days: 60 # maximum number of days to include
+max_days: 42 # maximum number of days to include (6 weeks)
 min_pressure: 7.0 # min Pressure
 max_pressure: # max Pressure
 max_leak_rate: 1.6 # max AvgLR
@@ -16,12 +16,14 @@ bayesian: true # perform BayesianRidge regression
 min_bayesian_weight: 0.1 # minimum BayesianRidge weight to print
 ard: false # perform ARD Bayesian regression
 min_ard_weight: 0.1 # minimum ARD weight to print
+linear: true # true to enable linear regression (including correlation and plotting)
 plot: true # true to enable plotting
 plot_quadratic: false # include quadratic regression in plots
 save_plots: false # save plots
 save_logs: true # save logs
 weight_frequency: false # true to weight by inverse frequency for pressure
 weight_usage: false # true to weight by usage
+pressure_count_leeway: 1 # try to keep counts within this difference
 x_field: Pressure # X field for linear regression and plots
 y_fields: # fields to calculate with optional title for plots and plot flag to allow plotting if globally enabled
   - name: Comb FL

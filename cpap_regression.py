@@ -63,8 +63,11 @@ class Regression:
         # filter by config or by zero weight (possible with manual weighting)
         self._filter()
         self.pressure = self.df['Pressure']
-        self.min_pressure = self.pressure.min()
-        self.max_pressure = self.pressure.max()
+        # noinspection PyTypeChecker
+        self.min_pressure: float = self.config['min_pressure'] if self.config['min_pressure'] else self.pressure.min()
+        # noinspection PyTypeChecker
+        self.max_pressure: float = self.config['max_pressure'] if self.config['max_pressure'] else self.pressure.max()
+        self.valid_pressures = [p/5 for p in range(int(self.min_pressure*5), int(self.max_pressure*5)+1)]
         self.multi_x_field_names = self.config['multi_x_fields']
         self.multi_x = StandardScaler().fit_transform(self.df[self.multi_x_field_names])
 
@@ -137,22 +140,23 @@ class Regression:
         self._log(f'N={len(self.df)} between {self.df['Date'].min()} and {self.df['Date'].max()}'
                   f' - {self._weighted_by()}')
         self._log('Pressure Counts:')
-        for pressure in sorted(self.pressure.unique()):
+        for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)}, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2f} total weight): {', '.join(dates)})')
+            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
+                      f'{total_weight:.2f} total weight): {', '.join(dates)}')
 
         avg_pressure = self.pressure.mean()
         self._log(f'Mean Pressure: {avg_pressure :.3f}')
         self._next_pressure()
 
         # Correlation and linear regression
-        all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
-        self._log('\nCorrelations with pressure:')
-        self._print_field_weights(all_correlations)
+        if self.config['linear']:
+            all_correlations = [(field.name, self._linear(field)) for field in self.y_fields]
+            self._log(f'\nCorrelations with {self.config['x_field']}:')
+            self._print_field_weights(all_correlations)
 
         if self.config['elastic_net']:
             self._elastic_net()
@@ -307,26 +311,33 @@ class Regression:
         pressure_counts = df['Pressure'].value_counts(ascending=True)
 
         min_count = pressure_counts.iloc[0]
+        if any(pressure_counts.get(pressure, 0) == 0 for pressure in self.valid_pressures):
+            min_count = 0
 
+        candidate_count = min_count + self.config['pressure_count_leeway']
+        candidate_pressures = [pressure for pressure in self.valid_pressures if pressure_counts.get(pressure, 0) <= candidate_count]
         last_pressure = df['Pressure'].iloc[-1]
-        if False and pressure_counts[last_pressure] == pressure_counts.iloc[0]:
-            # repeat previous pressure if it has the same count
-            next_pressure: float = last_pressure
-        else:
-            candidate_pressures = [pressure for pressure, count in pressure_counts.items() if count == min_count]
+
+        def get_next_pressure() -> float:
+            if len(candidate_pressures) == 0:
+                return self.min_pressure
             if len(candidate_pressures) == 1:
-                next_pressure: float = candidate_pressures[0]
-            elif df['Pressure'].mean() > (df['Pressure'].min() + df['Pressure'].max()) / 2:
+                return candidate_pressures[0]
+            if pressure_counts[last_pressure] == min_count:
+                # repeat previous pressure if it has the same count
+                return last_pressure
+            if df['Pressure'].mean() > (self.min_pressure + self.max_pressure) / 2:
                 # choose lowest pressure if mean above center
-                next_pressure: float = min(candidate_pressures)
-            else:
-                # choose highest pressure if mean below center
-                next_pressure: float = max(candidate_pressures)
+                return min(candidate_pressures)
+            # choose highest pressure if mean below center
+            return max(candidate_pressures)
+
+        next_pressure = get_next_pressure()
 
         if last_pressure == next_pressure:
-            self._log(f'Leave pressure at {next_pressure}')
+            self._log(f'Leave Pressure at {next_pressure}')
         else:
-            self._log(f'Change pressure from {last_pressure} to {next_pressure}')
+            self._log(f'Change Pressure from {last_pressure} to {next_pressure}')
 
 
 if __name__ == '__main__':
