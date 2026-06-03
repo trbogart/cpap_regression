@@ -1,21 +1,23 @@
 filename: cpap.csv # CSV file
-seed: 42
+seed: 42 # random seed (used for ElasticNet)
 print_filter_details: false # print filter details
-max_days: 56 # maximum number of days to include (8 weeks)
-min_pressure: 7.0 # min Pressure (defaults to min in dataset)
-max_pressure: 7.8 # max Pressure (defaults to max in dataset)
-max_leak_rate: 1.6 # max AvgLR
-min_usage: 6.0 # min Usage (hrs)
-min_sleep: 5.5 # min Sleep (hrs)
-min_sleep_efficiency: 0.75 # min ratio between Sleep and Usage
-num_correlations: 0 # num correlations to display (0 for all)
+min_date:  # optional min date in yyyy-mm-dd format
+max_date:  # optional max date in yyyy-mm-dd format
+max_days: 56 # optional maximum number of days to include (8 weeks, applied after min_date and max_date)
+min_pressure: 7.0 # optional min Pressure
+max_pressure: 7.8 # optional max Pressure
+max_leak_rate: 1.6 # optional max AvgLR
+min_usage: 6.0 # optional min Usage (hrs)
+min_sleep: 5.5 # optional min Sleep (hrs)
+min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
+num_correlations: 5 # optional num correlations to display
 elastic_net: false # true to enable ElasticNet regression
 alpha: 0.2 # alpha for ElasticNet regression
 l1_ratio: 1.0 # l1_ratio for ElasticNet regression
 bayesian: false # perform BayesianRidge regression
-min_bayesian_weight: 0.1 # minimum BayesianRidge weight to print
+min_bayesian_weight: 0.1 # optional minimum BayesianRidge weight to print
 ard: true # perform ARD Bayesian regression
-min_ard_weight: 0.1 # minimum ARD weight to print
+min_ard_weight: 0.1 # optional minimum ARD weight to print
 linear: true # true to enable linear regression (including correlation and plotting)
 plot: false # true to enable plotting
 plot_quadratic: false # include quadratic regression in plots
