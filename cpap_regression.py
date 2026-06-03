@@ -149,10 +149,6 @@ class Regression:
         if self.config['weighted_by']['usage']:
             self.df['Weight'] *= self.df['Usage']
 
-    def _get_fields(self, config: str) -> list[Field]:
-        return [field for field_config in self.config[config] if
-                not (field := Field.from_config(field_config)).enabled()]
-
     def _log(self, s: str):
         print(s)
         if self.log_file:
