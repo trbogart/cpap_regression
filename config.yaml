@@ -23,7 +23,7 @@ linear:
   plot_quadratic: false # include quadratic regression in plots
   save_plots: false # save plots
 elastic_net:
-c  enabled: false # true to enable ElasticNet regression using fields with multi_x_field
+  enabled: false # true to enable ElasticNet regression using fields with multi_x_field
   alpha: 0.2 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
   seed: 42
