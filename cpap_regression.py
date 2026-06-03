@@ -193,7 +193,10 @@ class Regression:
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'\nN={len(self.df)} {self._dates_string()} - {self._weighted_by()}')
+        days = (self.max_date_time - self.min_date_time).days + 1
+        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')} '
+
+        self._log(f'\nN={len(self.df)} between {date_string} ({days} days) - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
