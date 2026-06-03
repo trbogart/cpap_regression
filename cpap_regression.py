@@ -330,7 +330,6 @@ class Regression:
             else:
                 last_pressure_adjustment = 0
             score = pressure_count + pressure_adjustment - last_pressure_adjustment
-            print(f'??? {pressure}: {score:.2f} = {pressure_count} + {pressure_adjustment:.2f} - {last_pressure_adjustment}')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
