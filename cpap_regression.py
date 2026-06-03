@@ -89,7 +89,7 @@ class Regression:
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
 
-        # Weight field is 1 by default (mostly intended for manual exclusion)
+        # Weight field is 1 by default (mostly intended for manual exclusion, but non-zero weights also work)
         self.df['Weight'] = self.df['Weight'].fillna(1)
 
         # drop invalid data (including 0 weight, which is possible with manual weighting)
@@ -137,11 +137,11 @@ class Regression:
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
-        if self.config['weighted']['frequency']:
+        if self.config['weighted_by']['frequency']:
             pressure_counts = self.pressure.value_counts()
             self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.pressure]
 
-        if self.config['weighted']['usage']:
+        if self.config['weighted_by']['usage']:
             self.df['Weight'] *= self.df['Usage']
 
     def _get_fields(self, config: str) -> list[Field]:
@@ -270,7 +270,7 @@ class Regression:
 
 
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
-        config = self.config['weighted']
+        config = self.config['weighted_by']
         if config['frequency']:
             if config['usage']:
                 return 'weighted by inverse frequency and usage'
@@ -385,9 +385,9 @@ class Regression:
     def _base_filename(self) -> str:
         # noinspection PyStringConversionWithoutDunderMethod
         s = [str(self.df['Date'].max())]
-        if self.config['weighted']['frequency']:
+        if self.config['weighted_by']['frequency']:
             s.append('freq')
-        if self.config['weighted']['usage']:
+        if self.config['weighted_by']['usage']:
             s.append('usage')
         return '_'.join(s)
 
@@ -421,7 +421,7 @@ class Regression:
                     f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
                     f'(new mean {avg_pressure:.3f})')
 
-        if self.config['weighted']['usage']:
+        if self.config['weighted_by']['usage']:
             # weight by usage (same scale as row count)
             avg_usage = df['Usage'].mean()
             pressure_weights = {
