@@ -211,7 +211,7 @@ class Regression:
             self._all_correlations()
 
         # Correlation and linear regression
-        if self.config['linear']:
+        if self.config['linear']['enabled']:
             self._linear()
 
         if self.config['elastic_net']['enabled']:
@@ -236,10 +236,11 @@ class Regression:
             print(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
 
     def _linear(self):
+        config = self.config['linear']
         for x_field in self.x_fields:
             correlations = [
-                (y_field, self._linear_fields(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
-            num_correlations = self.config['num_correlations']
+                (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
+            num_correlations = config['num_correlations']
             if num_correlations:
                 self._log(f'\nTop {num_correlations} correlations with {x_field.name}:')
                 correlations = correlations[:num_correlations]
@@ -268,11 +269,12 @@ class Regression:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
     # correlations and
-    def _linear_fields(self, y_field: Field, x_field: Field) -> float:
+    def _linear_field(self, y_field: Field, x_field: Field) -> float:
+        config = self.config['linear']
         x = self.df[x_field.key]
         y = self.df[y_field.key]
         correl = self._weighted_correlation(x, y)
-        if y_field.plot and x_field.plot and self.config['plot']:
+        if y_field.plot and x_field.plot and config['plot']:
             # noinspection PyTypeChecker
             x_min: float = x.min()
             # noinspection PyTypeChecker
@@ -285,7 +287,7 @@ class Regression:
             plt.plot(polyline, poly1(polyline), color='blue')
 
             # quadratic regression
-            if self.config['plot_quadratic']:
+            if config['plot_quadratic']:
                 poly2 = Polynomial.fit(x, y, 2, w=self.df['Weight'])
                 c, b, a = poly2.convert().coef
 
@@ -307,7 +309,7 @@ class Regression:
             plt.ylabel(y_field.name)
             plt.title(title)
             plt.tight_layout()
-            if self.config['save_plots']:
+            if config['save_plots']:
                 plt.savefig(self._plot_filename(y_field, x_field), bbox_inches='tight')
             plt.show()
 
