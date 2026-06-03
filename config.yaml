@@ -41,14 +41,14 @@ next_pressure:
   target_pressure_weight: 1.0 # weight for distance from pressure to center mean when calculating next pressure (1 pressure = 1 count if 1.0)
   last_pressure_boost: 2.0 # boost for last pressure when calculating next pressure (reduces pressure count)
   random_weight: 2.0 # random weight when selecting next pressure
-# y_fields
+# fields
 # - key: key in CSV
 # - name: optional display name (defaults to key)
 # - title: optional title for plotting (defaults to name)
-# - plot: true to allow linear/quadratic plotting if true for both fields and globally enabled
-# - y_field: true if used as y field (will also be used for regularization unless multi_x_field is true)
-# - x_field: true if used as x field for correlation and linear regression
-# - multi_x_field: true if used as x field for regularization
+# - plot: true to enable linear/quadratic plotting (must be true for both fields and globally enabled)
+# - y_field: true if used as a y field (will also be used for regularization unless multi_x_field is true)
+# - x_field: true if used as an x field for correlation and linear regression
+# - multi_x_field: true if used as an x field for regularization (e.g. ElasticNet)
 fields:
   - key: Comb FL
     name: Combined FL
