@@ -1,7 +1,7 @@
 import random
 import sys
 from dataclasses import dataclass
-from itertools import islice, chain
+from itertools import islice
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -64,16 +64,17 @@ class Regression:
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
 
+        filter_config = self.config['filter']
         count = len(self.df)
-        if self.config['min_date']:
-            min_date = pd.to_datetime(self.config['min_date'], format='%Y-%m-%d')
+        if filter_config['min_date']:
+            min_date = pd.to_datetime(filter_config['min_date'], format='%Y-%m-%d')
             self.df.drop(self.df[self.df['DateTime'] < min_date].index, inplace=True)
-        if self.config['max_date']:
-            max_date = pd.to_datetime(self.config['max_date'], format='%Y-%m-%d')
+        if filter_config['max_date']:
+            max_date = pd.to_datetime(filter_config['max_date'], format='%Y-%m-%d')
             self.df.drop(self.df[self.df['DateTime'] > max_date].index, inplace=True)
-        if self.config['max_days']:
+        if filter_config['max_days']:
             # trim data for max days (before drop NA)
-            self.df = self.df.tail(self.config['max_days'])
+            self.df = self.df.tail(filter_config['max_days'])
 
         # Dates have to be known before opening log file (ignoring value filtering)
         self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
@@ -124,14 +125,14 @@ class Regression:
         dates = self._filter_config(dates, 'Usage', 'min_usage')
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
-        if not self.config['print_filter_details'] and len(dates) < count:
+        if not self.config['filter']['verbose'] and len(dates) < count:
             self._log(f'Dropped {count - len(dates)} rows based on configured filters')
 
         self.pressure = self.df['Pressure']
         # noinspection PyTypeChecker
-        self.min_pressure: float = self.config['min_pressure'] if self.config['min_pressure'] else self.pressure.min()
+        self.min_pressure: float = filter_config['min_pressure'] if filter_config['min_pressure'] else self.pressure.min()
         # noinspection PyTypeChecker
-        self.max_pressure: float = self.config['max_pressure'] if self.config['max_pressure'] else self.pressure.max()
+        self.max_pressure: float = filter_config['max_pressure'] if filter_config['max_pressure'] else self.pressure.max()
         self.valid_pressures = [p / 5 for p in range(int(self.min_pressure * 5), int(self.max_pressure * 5) + 1)]
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
@@ -144,7 +145,7 @@ class Regression:
             self.df['Weight'] *= self.df['Usage']
 
     def _get_fields(self, config: str) -> list[Field]:
-        return [field for field_config in self.config[config] if not (field := Field.from_config(field_config)).ignored]
+        return [field for field_config in self.config[config] if not (field := Field.from_config(field_config)).is_used()]
 
     def _log(self, s: str):
         print(s)
@@ -156,7 +157,7 @@ class Regression:
         return f'between {self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')} ({days} days)'
 
     def _filter_config(self, dates: set, field: str, config_key: str) -> set:
-        threshold = self.config[config_key]
+        threshold = self.config['filter'][config_key]
         if threshold is None:
             return dates
         if config_key.startswith('min_'):
@@ -171,7 +172,7 @@ class Regression:
         removed_rows = self.df[self.df['Date'].isin(removed_dates)]
 
         num_removed = len(dates) - len(new_dates)
-        if self.config['print_filter_details']:
+        if self.config['filter']['verbose']:
             if config_key is not None:
                 self._log(f'Dropped {num_removed} rows for '
                           f'{config_key.replace('_', ' ')}: {threshold}')
@@ -207,7 +208,7 @@ class Regression:
             self._log(f'Minimum N=2')
             sys.exit(0)
 
-        if self.config['num_all_correlations']:
+        if self.config['all_correlations']['enabled']:
             self._all_correlations()
 
         # Correlation and linear regression
@@ -225,15 +226,22 @@ class Regression:
 
     def _all_correlations(self):
         correlations = []
+        config = self.config['all_correlations']
+        min_correlation = config['min_correlation']
+        num_correlations = config['num_correlations']
+
         for i, field1 in enumerate(self.all_fields):
             for field2 in islice(self.all_fields, i):
                 correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key])
-                correlations.append((field1, field2, correlation))
+                if not min_correlation or correlation > min_correlation:
+                    correlations.append((field1, field2, correlation))
         correlations.sort(key=lambda t: abs(t[2]), reverse=True)
-        correlations = correlations[:self.config['num_all_correlations']]
-        self._log(f'\nTop {self.config['num_all_correlations']} correlations')
+
+        if num_correlations:
+            correlations = correlations[:num_correlations]
+        self._print_correlation_summary(num_correlations=num_correlations, min_correlation=min_correlation)
         for field1, field2, correlation in correlations:
-            print(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
+            self._log(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
 
     def _linear(self):
         config = self.config['linear']
@@ -241,13 +249,23 @@ class Regression:
             correlations = [
                 (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
             num_correlations = config['num_correlations']
-            suffix = f' > {config['min_correlation']}' if config['min_correlation'] else ''
-            if num_correlations:
-                self._log(f'\nTop {num_correlations} correlations with {x_field.name}{suffix}:')
-                correlations = correlations[:num_correlations]
-            else:
-                self._log(f'\nCorrelations with {x_field.name}{suffix}:')
-            self._print_field_weights(correlations, max_count=num_correlations, min_weight=config['min_correlation'])
+            min_correlation = config['min_correlation']
+            self._print_correlation_summary(field = x_field, num_correlations = num_correlations, min_correlation = min_correlation)
+            self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
+
+    def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None, min_correlation: float | None = None):
+        s = []
+        if num_correlations:
+            s.append(f'Top {num_correlations} correlations')
+        else:
+            s.append('Correlations')
+        if field:
+            s.append(f'with {field.name}')
+        if min_correlation:
+            s.append(f'> {min_correlation}')
+
+        self._log(f'\n{' '.join(s)}')
+
 
     def _weighted_by(self, include_unweighted: bool = True) -> str | None:
         if self.config['weight_frequency']:
@@ -390,8 +408,8 @@ class Regression:
         df = self.df
         avg_pressure = df['Pressure'].mean()
         self._log(f'Mean Pressure: {avg_pressure :.3f}')
-        if self.config['max_days']:
-            min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['max_days'] - 1)
+        if self.config['filter']['max_days']:
+            min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['filter']['max_days'] - 1)
             if df.at[df.index[0], 'DateTime'] == min_date:
                 df = df.iloc[1:]
                 avg_pressure = df['Pressure'].mean()

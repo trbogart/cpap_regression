@@ -1,15 +1,20 @@
 filename: cpap.csv # CSV file
-print_filter_details: false # print details for configuration-based filtering
-min_pressure:  # optional min Pressure (defaults to dataset min)
-max_pressure:  # optional max Pressure (defaults to dataset max)
-max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
-min_date: 2026-04-20 # optional min date in yyyy-mm-dd format
-max_date:  # optional max date in yyyy-mm-dd format
-max_leak_rate: 1.6 # optional max AvgLR
-min_usage: 6.0 # optional min Usage (hrs)
-min_sleep: 5.5 # optional min Sleep (hrs)
-min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
-num_all_correlations: 20 # optional number of correlations to display between all fields
+save_logs: true # save logs
+filter:
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  min_date: 2026-04-20 # optional min date in yyyy-mm-dd format
+  max_date:  # optional max date in yyyy-mm-dd format
+  min_pressure:  # optional min Pressure (defaults to dataset min)
+  max_pressure:  # optional max Pressure (defaults to dataset max)
+  max_leak_rate: 1.6 # optional max AvgLR
+  min_usage: 6.0 # optional min Usage (hrs)
+  min_sleep: 5.5 # optional min Sleep (hrs)
+  min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
+  verbose: false # print details for configuration-based filtering
+all_correlations:
+  enabled: true
+  num_correlations: # optional number of correlations to display between all fields
+  min_correlation: 0.3 # minimum correlation size
 linear:
   enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
@@ -26,9 +31,8 @@ bayesian:
   enabled: false # perform BayesianRidge regression
   min_weight: 0.1 # optional minimum BayesianRidge weight to print
 ard:
-  enabled: false # perform ARD Bayesian regression
+  enabled: true # perform ARD Bayesian regression
   min_weight: 0.1 # optional minimum ARD weight to print
-save_logs: true # save logs
 weight_frequency: false # true to weight by inverse frequency for pressure
 weight_usage: false # true to weight by usage
 next_pressure:
