@@ -3,9 +3,9 @@ seed: 42 # random seed (used for ElasticNet)
 print_filter_details: false # print details for configuration-based filtering
 min_date:  # optional min date in yyyy-mm-dd format
 max_date:  # optional max date in yyyy-mm-dd format
-max_days: 56 # optional maximum number of days to include (8 weeks, applied after min_date and max_date)
-min_pressure: 7.0 # optional min Pressure
-max_pressure: 7.8 # optional max Pressure
+max_days: 42 # optional maximum number of days to include (6 weeks, applied after min_date and max_date)
+min_pressure:  # optional min Pressure (defaults to dataset min)
+max_pressure:  # optional max Pressure (defaults to dataset max)
 max_leak_rate: 1.6 # optional max AvgLR
 min_usage: 6.0 # optional min Usage (hrs)
 min_sleep: 5.5 # optional min Sleep (hrs)
