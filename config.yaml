@@ -2,7 +2,7 @@ data_file: cpap.csv # CSV file
 save_logs: true # save logs
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
-  min_date: 2026-04-20 # optional min date in yyyy-mm-dd format
+  min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
   max_pressure:  # optional max Pressure
@@ -82,12 +82,12 @@ fields:
     multi_x_field: true
   - key: IFL
     title: IFL Symptom Risk %
-    y_field: false # strongly correlated with other metrics
+    y_field: false # disable
   - key: NED Mean
-    y_field: false # strongly correlated with other metrics
+    y_field: false # disable
   - key: NED RERA
     name: RERA/hr
-    y_field: false # strongly correlated with other metrics
+    y_field: false # disable
   - key: Period
     name: Periodicity
     y_field: true
@@ -95,18 +95,16 @@ fields:
     name: Regularity
     y_field: true
   - key: Pressure
-    plot: true
     x_field: true # primary x field
+    plot: true
     multi_x_field: true
   - key: Usage
     multi_x_field: true
   - key: Sleep
     multi_x_field: true
   - key: REM
-    name: REM Sleep
     multi_x_field: true
   - key: Deep
-    name: Deep Sleep
     multi_x_field: true
   - key: Timestamp
     name: Date
