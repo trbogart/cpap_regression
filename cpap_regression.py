@@ -104,8 +104,14 @@ class Regression:
         self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
 
         count = len(self.df)
+        # noinspection PyStringConversionWithoutDunderMethod
         date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
         self._log(f'{count} rows between {date_string} ({self.num_days} days)')
+
+        if filter_config['min_date'] and pd.to_datetime(filter_config['min_date']) != self.min_date_time:
+            self._log("Config 'min_date' not used")
+        if filter_config['max_date'] and pd.to_datetime(filter_config['max_date']) != self.max_date_time:
+            self._log("Config 'max_date' not used")
 
         if count < self.num_days:
             missing = self.num_days - count
@@ -191,12 +197,12 @@ class Regression:
 
         filter_config = self.config['filter']
         if filter_config['max_date']:
-            config_max_date = pd.to_datetime(filter_config['max_date'], format='%Y-%m-%d')
+            config_max_date = pd.to_datetime(filter_config['max_date'])
             if config_max_date < max_date_time:
                 max_date_time = config_max_date
                 self.df.drop(self.df[self.df['DateTime'] > max_date_time].index, inplace=True)
         if filter_config['min_date']:
-            config_min_date = pd.to_datetime(filter_config['min_date'], format='%Y-%m-%d')
+            config_min_date = pd.to_datetime(filter_config['min_date'])
             if config_min_date > min_date_time:
                 min_date_time = config_min_date
 
@@ -516,7 +522,10 @@ class Regression:
             if config['last_pressure_boost'] and pressure == self.last_pressure:
                 pressure_boost += config['last_pressure_boost']
             if config['min_count'] and pressure_weight < config['min_count']:
-                pressure_boost += (config['min_count'] - pressure_weight)
+                pressure_boost += config['min_count'] - pressure_weight
+            if pressure_weight == 0 and pressure_weight in (self.min_pressure, self.max_pressure):
+                # always select extreme weight with zero count (so it isn't lost or manual override can be removed)
+                pressure_boost += 100
 
             if config['random_weight']:
                 random_adjustment = random.random() * config['random_weight']
