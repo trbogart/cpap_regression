@@ -52,10 +52,10 @@ next_pressure:
 fields:
   - key: Comb FL
     name: Combined FL
-    y_field: false # disable
+    y_field: false # disable - strongly correlated with other metrics
   - key: FLS
     name: Flow Limitation Score
-    y_field: false # disable
+    y_field: false # disable - strongly correlated with other metrics
   - key: GI
     name: Glasgow Index Overall
     plot: true
@@ -78,10 +78,12 @@ fields:
     y_field: true
   - key: AHI
     y_field: false # disable
+  - key: RERA
+    y_field: false # disable
+  - key: RDI
+    y_field: true # disable
   - key: CAI
     y_field: true
-  - key: RDI
-    y_field: false
   - key: 95%FL
     name: 95% Flow Limitation
     y_field: true
@@ -113,4 +115,7 @@ fields:
   - key: Timestamp
     name: Date
     multi_x_field: true
+  - key: Efficiency
+    name: Sleep Efficiency
+    multi_x_field: false # disabled
 

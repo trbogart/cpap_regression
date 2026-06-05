@@ -53,21 +53,45 @@ class Regression:
 
         self.all_fields = [Field.from_config(field_config) for field_config in self.config['fields']]
         self.enabled_fields = [field for field in self.all_fields if field.enabled]
-        assert len(self.enabled_fields) == len(set([field.key for field in self.enabled_fields]))
-
         self.y_fields = [field for field in self.enabled_fields if field.y_field]
         self.x_fields = [field for field in self.enabled_fields if field.x_field]
         self.multi_x_fields = [field for field in self.enabled_fields if field.multi_x_field]
         self.multi_y_fields = [field for field in self.enabled_fields if field.multi_y_field]
 
-        self.df = pd.read_csv(self.config['data_file'])
+        columns = {'Weight', 'Date', 'Pressure'}
+        filter_config = self.config['filter']
+        if 'max_leak_rate' in filter_config:
+            columns.add('AvgLR')
+        if 'min_usage' in filter_config or self.config['weighted_by']['usage']:
+            columns.add('Usage')
+        if 'min_sleep' in filter_config:
+            columns.add('Sleep')
+        calculate_efficiency = 'min_sleep_efficiency' in filter_config
+        calculate_rdi = False
+
+        for field in self.enabled_fields:
+            if field.key == 'RDI':
+                calculate_rdi = True
+            elif field.key == 'Efficiency':
+                calculate_efficiency = True
+            elif field.key == 'Timestamp':
+                pass  # calculated from Date, which is always included
+            else:
+                columns.add(field.key)
+        if calculate_efficiency:
+            columns.add('Usage')
+            columns.add('Sleep')
+        if calculate_rdi:
+            columns.add('AHI')
+            columns.add('RERA')
+
+        self.df = pd.read_csv(self.config['data_file'], usecols=list(columns))
 
         self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
         self.df['Timestamp'] = self.df['DateTime'].astype('int64') / 1e9
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
 
-        filter_config = self.config['filter']
         count = len(self.df)
         if filter_config['min_date']:
             min_date = pd.to_datetime(filter_config['min_date'], format='%Y-%m-%d')
@@ -111,14 +135,21 @@ class Regression:
         self.last_pressure = self.df['Pressure'].iloc[-1]
 
         # convert time fields from H:MM to float hours
-        self.df['Usage'] = pd.to_timedelta(self.df['Usage'] + ':00').dt.total_seconds() / 3600
-        self.df['Sleep'] = pd.to_timedelta(self.df['Sleep'] + ':00').dt.total_seconds() / 3600
-        self.df['REM'] = pd.to_timedelta(self.df['REM'] + ':00').dt.total_seconds() / 3600
-        self.df['Deep'] = pd.to_timedelta(self.df['Deep'] + ':00').dt.total_seconds() / 3600
+        if 'Usage' in columns:
+            self.df['Usage'] = pd.to_timedelta(self.df['Usage'] + ':00').dt.total_seconds() / 3600
+        if 'Sleep' in columns:
+            self.df['Sleep'] = pd.to_timedelta(self.df['Sleep'] + ':00').dt.total_seconds() / 3600
+        if 'REM' in columns:
+            self.df['REM'] = pd.to_timedelta(self.df['REM'] + ':00').dt.total_seconds() / 3600
+        if 'Deep' in columns:
+            self.df['Deep'] = pd.to_timedelta(self.df['Deep'] + ':00').dt.total_seconds() / 3600
 
         # calculated fields
-        self.df['Efficiency'] = self.df['Sleep'] / self.df['Usage']
-        self.df['RDI'] = self.df['AHI'] + self.df['RERA']
+        if calculate_efficiency:
+            self.df['Efficiency'] = self.df['Sleep'] / self.df['Usage']
+
+        if calculate_rdi:
+            self.df['RDI'] = self.df['AHI'] + self.df['RERA']
 
         # filter by config
         dates = set(self.df['Date'])
