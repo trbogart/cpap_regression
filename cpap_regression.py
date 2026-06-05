@@ -521,18 +521,16 @@ class Regression:
             pressure_boost = 0
             if config['last_pressure_boost'] and pressure == self.last_pressure:
                 pressure_boost += config['last_pressure_boost']
-            if config['min_count'] and pressure_weight < config['min_count']:
-                pressure_boost += config['min_count'] - pressure_weight
-            if pressure_weight == 0 and pressure_weight in (self.min_pressure, self.max_pressure):
+            if pressure_weight == 0 and pressure in (self.min_pressure, self.max_pressure):
                 # always select extreme weight with zero count (so it isn't lost or manual override can be removed)
-                pressure_boost += 100
+                pressure_boost += float('inf')
 
             if config['random_weight']:
                 random_adjustment = random.random() * config['random_weight']
             else:
                 random_adjustment = 0
 
-            score = pressure_weight - pressure_boost + random_adjustment
+            score = pressure_weight + random_adjustment - pressure_boost
             if config['verbose']:
                 self._log(f'- {pressure}: {score:.2f}'
                           f' ({pressure_weight:.2f} + {random_adjustment:.2f} - {pressure_boost})')
