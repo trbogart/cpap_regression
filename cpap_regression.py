@@ -504,7 +504,6 @@ class Regression:
         else:
             # weight by row count
             pressure_weights = df['Pressure'].value_counts()
-        target_pressure = center_pressure * (len(df) + 1) - df['Pressure'].sum()
         next_pressure = self.min_pressure
         best_score = float('inf')
         config = self.config['next_pressure']
@@ -513,7 +512,6 @@ class Regression:
             self._log('Scores:')
         for pressure in self.valid_pressures:
             pressure_weight = pressure_weights.get(pressure, 0)
-            pressure_adjustment = abs(target_pressure - pressure) * config['target_pressure_weight']
             if pressure == self.last_pressure:
                 last_pressure_adjustment = config['last_pressure_boost']
             else:
@@ -522,10 +520,10 @@ class Regression:
                 random_adjustment = random.random() * config['random_weight']
             else:
                 random_adjustment = 0
-            score = pressure_weight + pressure_adjustment - last_pressure_adjustment + random_adjustment
+            score = pressure_weight - last_pressure_adjustment + random_adjustment
             if config['verbose']:
-                self._log(
-                    f'- {pressure}: {score:.2f} = {pressure_weight:.2f} + {pressure_adjustment:.2f} + {random_adjustment:.2f} - {last_pressure_adjustment}')
+                self._log(f'- {pressure}: {score:.2f}'
+                          f' ({pressure_weight:.2f} + {random_adjustment:.2f} - {last_pressure_adjustment})')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score

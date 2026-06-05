@@ -4,7 +4,7 @@ filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure: 7.2 # optional min Pressure
+  min_pressure:  # optional min Pressure
   max_pressure:  # optional max Pressure
   max_leak_rate: 1.5 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
@@ -38,9 +38,8 @@ weighted_by:
   usage: false # true to weight by usage
 next_pressure:
   enabled: true # true to enable recommending next pressure
-  target_pressure_weight: 1.0 # weight for distance from pressure to center mean when calculating next pressure (1 pressure = 1 count if 1.0)
-  last_pressure_boost: 2.0 # boost for last pressure when calculating next pressure (reduces pressure count)
-  random_weight: 2.0 # random weight when selecting next pressure
+  last_pressure_boost: 2 # boost for last pressure (reduces pressure count)
+  random_weight: 3.0 # random weight when selecting next pressure (tie-breaker if < 1.0)
   verbose: false
 # fields
 # - key: key in CSV
