@@ -11,6 +11,14 @@ filter:
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
+next_pressure:
+  enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
+  last_pressure_boost: 1 # boost for last pressure (reduces pressure count)
+  random_weight: 2.0 # max random number to add to pressure count (tie-breaker if < 1.0)
+  verbose: false
+weighted_by:
+  frequency: false # true to weight by inverse frequency for pressure
+  usage: false # true to weight by usage
 all_correlations:
   enabled: true # true to run correlations between all enabled fields
   num_correlations: # optional number of correlations to display between all fields (null to display all)
@@ -33,14 +41,6 @@ bayesian:
 ard:
   enabled: true # perform ARD Bayesian regression using multi_x_field
   min_weight: 0.1 # optional minimum ARD weight to print
-weighted_by:
-  frequency: false # true to weight by inverse frequency for pressure
-  usage: false # true to weight by usage
-next_pressure:
-  enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 1 # boost for last pressure (reduces pressure count)
-  random_weight: 2.0 # max random number to add to pressure count (tie-breaker if < 1.0)
-  verbose: false
 # fields
 # - key: key in CSV
 # - name: optional display name (defaults to key)
