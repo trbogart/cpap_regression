@@ -57,8 +57,17 @@ fields:
     name: Flow Limitation Score
     y_field: false # disable
   - key: GI
-    name: Glasgow Index
+    name: Glasgow Index Overall
     plot: true
+    y_field: true
+  - key: GI Sk
+    name: Glasgow Index Skew
+    y_field: true
+  - key: GI TH
+    name: Glasgow Index Top Heavy
+    y_field: true
+  - key: GI VA
+    name: Glasgow Index Var Amp
     y_field: true
   - key: NED RDI
     plot: true
@@ -82,11 +91,6 @@ fields:
     multi_x_field: true
   - key: IFL
     title: IFL Symptom Risk %
-    y_field: false # disable
-  - key: NED Mean
-    y_field: false # disable
-  - key: NED RERA
-    name: RERA/hr
     y_field: false # disable
   - key: Period
     name: Periodicity
