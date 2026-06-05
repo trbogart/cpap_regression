@@ -453,14 +453,26 @@ class Regression:
     def _next_pressure(self):
         df = self.df
         avg_pressure = df['Pressure'].mean()
-        self._log(f'Mean Pressure: {avg_pressure :.3f}')
+        center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
+
+        def mean_pressure(avg_pressure: float) -> str:
+            if avg_pressure > center_pressure:
+                suffix = f' ({avg_pressure - center_pressure:.3f} above center)'
+            elif avg_pressure < center_pressure:
+                suffix = f' ({center_pressure - avg_pressure:.3f} below center)'
+            else:
+                suffix = ''
+
+            return f'{avg_pressure:.3f}{suffix}'
+
+        self._log(f'Mean Pressure: {mean_pressure(avg_pressure)}')
+
         if self.config['filter']['max_days'] and df.at[df.index[0], 'DateTime'] == self.min_date_time:
             df = df.iloc[1:]
             avg_pressure = df['Pressure'].mean()
             # noinspection PyStringConversionWithoutDunderMethod
-            self._log(
-                f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
-                f'(new mean {avg_pressure:.3f})')
+            self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow')
+            self._log(f'  New mean Pressure: {mean_pressure(avg_pressure)}')
 
         if self.config['weighted_by']['usage']:
             # weight by usage (same scale as row count)
@@ -471,11 +483,13 @@ class Regression:
         else:
             # weight by row count
             pressure_weights = df['Pressure'].value_counts()
-        target_pressure = np.mean([self.min_pressure, self.max_pressure]) * (len(df) + 1) - df['Pressure'].sum()
+        target_pressure = center_pressure * (len(df) + 1) - df['Pressure'].sum()
         next_pressure = self.min_pressure
         best_score = float('inf')
         config = self.config['next_pressure']
 
+        if config['verbose']:
+            self._log('Scores:')
         for pressure in self.valid_pressures:
             pressure_weight = pressure_weights.get(pressure, 0)
             pressure_adjustment = abs(target_pressure - pressure) * config['target_pressure_weight']
@@ -488,6 +502,8 @@ class Regression:
             else:
                 random_adjustment = 0
             score = pressure_weight + pressure_adjustment - last_pressure_adjustment + random_adjustment
+            if config['verbose']:
+                self._log(f'- {pressure}: {score:.2f} = {pressure_weight:.2f} + {pressure_adjustment:.2f} + {random_adjustment:.2f} - {last_pressure_adjustment}')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
