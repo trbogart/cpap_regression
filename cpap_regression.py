@@ -111,13 +111,9 @@ class Regression:
             print(f'Duplicate Date: {date_counts.index[0]}')
             sys.exit(1)
 
-        new_count = len(self.df)
-        self._log(f'{count} rows')
-        if new_count < count:
-            self._log(f'Dropped {count - len(self.df)} rows based on Date')
-            count = new_count
         self.min_date_time = self.df['DateTime'].iloc[0]
         self.max_date_time = self.df['DateTime'].iloc[-1]
+        self.num_days = (self.max_date_time - self.min_date_time).days + 1
 
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
@@ -126,11 +122,13 @@ class Regression:
         self.df['Weight'] = self.df['Weight'].fillna(1)
 
         # drop invalid data (including 0 weight, which is possible with manual weighting)
+        count = len(self.df)
         self.df.drop(self.df[self.df['Weight'] == 0].index, inplace=True)
         self.df.dropna(inplace=True)
         new_count = len(self.df)
         if new_count < count:
-            self._log(f'Dropped {count - len(self.df)} rows with invalid data')
+            diff = count - len(self.df)
+            self._log(f'Dropped {diff} rows ({100*diff/self.num_days:.1f}%) with invalid data')
             count = new_count
 
         if count == 0:
@@ -166,7 +164,8 @@ class Regression:
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
         if not self.config['filter']['verbose'] and len(dates) < count:
-            self._log(f'Dropped {count - len(dates)} rows with configured filters')
+            diff = count - len(self.df)
+            self._log(f'Dropped {diff} rows ({100*diff/self.num_days:.1f}%) for configured filters')
 
         self.pressure = self.df['Pressure']
         # noinspection PyTypeChecker
@@ -190,10 +189,6 @@ class Regression:
         print(s)
         if self.log_file:
             print(s, file=self.log_file)
-
-    def _dates_string(self):
-        days = (self.max_date_time - self.min_date_time).days + 1
-        return f'between {self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')} ({days} days)'
 
     def _filter_config(self, dates: set, field: str, config_key: str) -> set:
         threshold = self.config['filter'][config_key]
@@ -230,10 +225,10 @@ class Regression:
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        days = (self.max_date_time - self.min_date_time).days + 1
-        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')} '
+        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
 
-        self._log(f'\nN={len(self.df)} between {date_string} ({days} days) - {self._weighted_by()}')
+        self._log(f'\nN={len(self.df)} ({100*len(self.df)/self.num_days:.1f}%) between {date_string} '
+                  f'({self.num_days} days) - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
