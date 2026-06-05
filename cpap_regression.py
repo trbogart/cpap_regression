@@ -105,6 +105,12 @@ class Regression:
 
         # Dates have to be known before opening log file (ignoring value filtering)
         self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+
+        date_counts = self.df['Date'].value_counts()
+        if date_counts.iloc[0] > 1:
+            print(f'Duplicate Date: {date_counts.index[0]}')
+            sys.exit(1)
+
         new_count = len(self.df)
         self._log(f'{count} rows')
         if new_count < count:
