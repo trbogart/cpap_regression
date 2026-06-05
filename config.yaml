@@ -14,7 +14,7 @@ filter:
 all_correlations:
   enabled: true # true to run correlations between all enabled fields
   num_correlations: # optional number of correlations to display between all fields (null to display all)
-  min_correlation: 0.3 # optional minimum correlation to display (default 0)
+  min_correlation: 0.4 # optional minimum correlation to display (default 0)
 linear:
   enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)

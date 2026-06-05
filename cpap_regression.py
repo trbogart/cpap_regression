@@ -238,7 +238,7 @@ class Regression:
         for i, field1 in enumerate(self.enabled_fields):
             for field2 in islice(self.enabled_fields, i):
                 correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key])
-                if not min_correlation or correlation > min_correlation:
+                if not min_correlation or abs(correlation) > min_correlation:
                     correlations.append((field1, field2, correlation))
         correlations.sort(key=lambda t: abs(t[2]), reverse=True)
 
