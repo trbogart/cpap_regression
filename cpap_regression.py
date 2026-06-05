@@ -448,15 +448,13 @@ class Regression:
         df = self.df
         avg_pressure = df['Pressure'].mean()
         self._log(f'Mean Pressure: {avg_pressure :.3f}')
-        if self.config['filter']['max_days']:
-            min_date = df['DateTime'].max() - pd.Timedelta(days=self.config['filter']['max_days'] - 1)
-            if df.at[df.index[0], 'DateTime'] == min_date:
-                df = df.iloc[1:]
-                avg_pressure = df['Pressure'].mean()
-                # noinspection PyStringConversionWithoutDunderMethod
-                self._log(
-                    f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
-                    f'(new mean {avg_pressure:.3f})')
+        if self.config['filter']['max_days'] and df.at[df.index[0], 'DateTime'] == self.min_date_time:
+            df = df.iloc[1:]
+            avg_pressure = df['Pressure'].mean()
+            # noinspection PyStringConversionWithoutDunderMethod
+            self._log(
+                f'Will drop {df.at[df.index[0], 'Date']} (Pressure {df.at[df.index[0], 'Pressure']}) tomorrow '
+                f'(new mean {avg_pressure:.3f})')
 
         if self.config['weighted_by']['usage']:
             # weight by usage (same scale as row count)
