@@ -499,14 +499,17 @@ class Regression:
             avg_pressure = df['Pressure'].mean()
             # noinspection PyStringConversionWithoutDunderMethod
             dropped_pressure = df.at[df.index[0], 'Pressure']
+            # noinspection PyStringConversionWithoutDunderMethod
             self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {dropped_pressure}) tomorrow')
             self._log(f'  New mean Pressure: {mean_pressure(avg_pressure)}')
 
         # calculate next pressure
-        # 1 - dropped pressure if it reduces count at either extreme to 0 (data might be lost otherwise)
-        # 2 - min pressure if count is 0 (can remove min_pressure config)
-        # 3 - max pressure if count is 0 (can remove max_pressure config)
-        # 4 - select lowest adjusted weight
+        # priority is:
+        # 1 - last pressure if either min or max and count is 0 (implying data was invalid, avoid pressure "falling off")
+        # 2 - dropped pressure if either min or max and new count will be 0 (avoid pressure "falling off")
+        # 3 - min pressure if count is 0 (will be able to remove min_pressure config)
+        # 4 - max pressure if count is 0 (will be able to remove max_pressure config)
+        # 5 - select lowest adjusted weight
         #     - base weight is count or total usage scaled to 1.0/night average
         #     - subtract last_pressure_boost for most recent pressure
         #     - add random number between [0, random_weight) - random_weight <= 1 is a tie-breaker
@@ -521,13 +524,21 @@ class Regression:
             # weight by row count
             pressure_weights = df['Pressure'].value_counts()
 
-        next_pressure = self.max_pressure
-        best_score = float('inf')
         extreme_pressures = (self.min_pressure, self.max_pressure)
-        if dropped_pressure is not None and pressure_weights.get(dropped_pressure, 0) == 0:
-            if dropped_pressure in extreme_pressures:
-                next_pressure = dropped_pressure
-                best_score = -float('inf')
+
+        def is_zero_extreme(pressure: float | None) -> bool:
+            return pressure is not None and pressure in extreme_pressures and pressure_weights.get(dropped_pressure,
+                                                                                                   0) == 0
+
+        if is_zero_extreme(self.last_pressure):
+            next_pressure = self.last_pressure
+            best_score = -float('inf')
+        elif is_zero_extreme(dropped_pressure):
+            next_pressure = self.last_pressure
+            best_score = -float('inf')
+        else:
+            next_pressure = self.max_pressure
+            best_score = float('inf')
 
         config = self.config['next_pressure']
 
@@ -545,7 +556,7 @@ class Regression:
                 pressure_boost = 0
 
             if config['random_sigma']:
-                random_adjustment = random.gauss(sigma= config['random_sigma'])
+                random_adjustment = random.gauss(sigma=config['random_sigma'])
             else:
                 random_adjustment = 0
 
