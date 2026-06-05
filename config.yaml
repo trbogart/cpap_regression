@@ -41,7 +41,7 @@ next_pressure:
   target_pressure_weight: 1.0 # weight for distance from pressure to center mean when calculating next pressure (1 pressure = 1 count if 1.0)
   last_pressure_boost: 2.0 # boost for last pressure when calculating next pressure (reduces pressure count)
   random_weight: 2.0 # random weight when selecting next pressure
-  verbose: true
+  verbose: false
 # fields
 # - key: key in CSV
 # - name: optional display name (defaults to key)
