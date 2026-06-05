@@ -133,7 +133,7 @@ class Regression:
             sys.exit(1)
 
         # get last pressure before config filtering so next pressure logic will work correctly
-        self.last_pressure = self.df['Pressure'].iloc[-1]
+        self.last_pressure: float = self.df['Pressure'].iloc[-1]
 
         # convert time fields from H:MM to float hours
         if 'Usage' in columns:
@@ -164,12 +164,25 @@ class Regression:
             self._print_dropped(count, 'for configured filters')
 
         self.pressure = self.df['Pressure']
-        # noinspection PyTypeChecker
-        self.min_pressure: float = filter_config['min_pressure'] if filter_config[
-            'min_pressure'] else self.pressure.min()
-        # noinspection PyTypeChecker
-        self.max_pressure: float = filter_config['max_pressure'] if filter_config[
-            'max_pressure'] else self.pressure.max()
+        if filter_config['min_pressure']:
+            self.min_pressure: float = filter_config['min_pressure']
+            if self.last_pressure < self.min_pressure:
+                last_valid_pressure = self.df['Pressure'].iloc[-1]
+                self._log(f"Last pressure ({self.last_pressure}) below 'min_pressure' ({self.min_pressure}), use {last_valid_pressure} instead")
+                self.last_pressure = last_valid_pressure
+        else:
+            # noinspection PyTypeChecker
+            self.min_pressure: float = min(self.last_pressure, self.pressure.min())
+        if filter_config['max_pressure']:
+            self.max_pressure: float = filter_config['max_pressure']
+            if self.last_pressure > self.max_pressure:
+                last_valid_pressure = self.df['Pressure'].iloc[-1]
+                self._log(f"Last pressure ({self.last_pressure}) above 'max_pressure' ({self.max_pressure}), use {last_valid_pressure} instead")
+                self.last_pressure = last_valid_pressure
+        else:
+            # noinspection PyTypeChecker
+            self.max_pressure: float = max(self.last_pressure, self.pressure.max())
+
         self.valid_pressures = [p / 5 for p in range(int(self.min_pressure * 5), int(self.max_pressure * 5) + 1)]
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
