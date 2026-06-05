@@ -512,18 +512,21 @@ class Regression:
             self._log('Scores:')
         for pressure in self.valid_pressures:
             pressure_weight = pressure_weights.get(pressure, 0)
-            if pressure == self.last_pressure:
-                last_pressure_adjustment = config['last_pressure_boost']
-            else:
-                last_pressure_adjustment = 0
+            pressure_boost = 0
+            if config['last_pressure_boost'] and pressure == self.last_pressure:
+                pressure_boost += config['last_pressure_boost']
+            if config['min_count'] and pressure_weight < config['min_count']:
+                pressure_boost += (config['min_count'] - pressure_weight)
+
             if config['random_weight']:
                 random_adjustment = random.random() * config['random_weight']
             else:
                 random_adjustment = 0
-            score = pressure_weight - last_pressure_adjustment + random_adjustment
+
+            score = pressure_weight - pressure_boost + random_adjustment
             if config['verbose']:
                 self._log(f'- {pressure}: {score:.2f}'
-                          f' ({pressure_weight:.2f} + {random_adjustment:.2f} - {last_pressure_adjustment})')
+                          f' ({pressure_weight:.2f} + {random_adjustment:.2f} - {pressure_boost})')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score

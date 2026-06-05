@@ -1,7 +1,7 @@
 data_file: cpap.csv # CSV file
 save_logs: true # save logs
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
@@ -37,9 +37,10 @@ weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
   usage: false # true to weight by usage
 next_pressure:
-  enabled: true # true to enable recommending next pressure
+  enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 2 # boost for last pressure (reduces pressure count)
-  random_weight: 3.0 # random weight when selecting next pressure (tie-breaker if < 1.0)
+  random_weight: 2.0 # random weight to add to pressure count (tie-breaker if < 1.0)
+  min_count: 3 # minimum count (if below this, subtract difference from pressure count)
   verbose: false
 # fields
 # - key: key in CSV
