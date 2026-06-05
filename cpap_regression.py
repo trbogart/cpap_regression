@@ -109,7 +109,7 @@ class Regression:
 
         if count < self.num_days:
             missing = self.num_days - count
-            self._log(f'Missing {missing} {'rows' if missing > 1 else 'row'} ({100*missing/self.num_days:.1f}%)')
+            self._log(f'Missing {missing} {'rows' if missing > 1 else 'row'} ({100 * missing / self.num_days:.1f}%)')
 
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
@@ -180,7 +180,8 @@ class Regression:
         dropped = old_count - new_count
         assert dropped >= 0
         if dropped > 0:
-            self._log(f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} ({100*dropped/self.num_days:.1f}%) {description}')
+            self._log(
+                f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} ({100 * dropped / self.num_days:.1f}%) {description}')
         return new_count
 
     # noinspection PyTypeChecker,PyPackages
@@ -245,13 +246,15 @@ class Regression:
                     if field != 'Pressure':
                         line += f', {field}={row[field]:.2f}'
                     self._log(line)
+        elif num_removed == 0:
+            self._log(f"Config '{config_key}' filtered no rows")
 
         self.df = filtered_df
         return new_dates
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'\nN={len(self.df)} ({100*len(self.df)/self.num_days:.1f}%) - {self._weighted_by()}')
+        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
@@ -521,7 +524,8 @@ class Regression:
                 random_adjustment = 0
             score = pressure_weight + pressure_adjustment - last_pressure_adjustment + random_adjustment
             if config['verbose']:
-                self._log(f'- {pressure}: {score:.2f} = {pressure_weight:.2f} + {pressure_adjustment:.2f} + {random_adjustment:.2f} - {last_pressure_adjustment}')
+                self._log(
+                    f'- {pressure}: {score:.2f} = {pressure_weight:.2f} + {pressure_adjustment:.2f} + {random_adjustment:.2f} - {last_pressure_adjustment}')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
