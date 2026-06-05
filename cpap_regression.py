@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from numpy.polynomial.polynomial import Polynomial
+from pandas import DatetimeIndex
 from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
 from sklearn.preprocessing import StandardScaler
 
@@ -92,28 +93,23 @@ class Regression:
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
 
-        count = len(self.df)
-        if filter_config['min_date']:
-            min_date = pd.to_datetime(filter_config['min_date'], format='%Y-%m-%d')
-            self.df.drop(self.df[self.df['DateTime'] < min_date].index, inplace=True)
-        if filter_config['max_date']:
-            max_date = pd.to_datetime(filter_config['max_date'], format='%Y-%m-%d')
-            self.df.drop(self.df[self.df['DateTime'] > max_date].index, inplace=True)
-        if filter_config['max_days']:
-            # trim data for max days (before drop NA)
-            self.df = self.df.tail(filter_config['max_days'])
-
-        # Dates have to be known before opening log file (ignoring value filtering)
-        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
-
         date_counts = self.df['Date'].value_counts()
         if date_counts.iloc[0] > 1:
             print(f'Duplicate Date: {date_counts.index[0]}')
             sys.exit(1)
 
-        self.min_date_time = self.df['DateTime'].iloc[0]
-        self.max_date_time = self.df['DateTime'].iloc[-1]
-        self.num_days = (self.max_date_time - self.min_date_time).days + 1
+        self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
+
+        # Dates have to be known before opening log file (ignoring value filtering)
+        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+
+        count = len(self.df)
+        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
+        self._log(f'{count} rows between {date_string} ({self.num_days} days)')
+
+        if count < self.num_days:
+            missing = self.num_days - count
+            self._log(f'Missing {missing} {'rows' if missing > 1 else 'row'} ({100*missing/self.num_days:.1f}%)')
 
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
@@ -122,14 +118,9 @@ class Regression:
         self.df['Weight'] = self.df['Weight'].fillna(1)
 
         # drop invalid data (including 0 weight, which is possible with manual weighting)
-        count = len(self.df)
         self.df.drop(self.df[self.df['Weight'] == 0].index, inplace=True)
         self.df.dropna(inplace=True)
-        new_count = len(self.df)
-        if new_count < count:
-            diff = count - len(self.df)
-            self._log(f'Dropped {diff} rows ({100*diff/self.num_days:.1f}%) with invalid data')
-            count = new_count
+        count = self._print_dropped(count, 'with invalid data')
 
         if count == 0:
             print('No data')
@@ -164,8 +155,7 @@ class Regression:
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
         if not self.config['filter']['verbose'] and len(dates) < count:
-            diff = count - len(self.df)
-            self._log(f'Dropped {diff} rows ({100*diff/self.num_days:.1f}%) for configured filters')
+            self._print_dropped(count, 'for configured filters')
 
         self.pressure = self.df['Pressure']
         # noinspection PyTypeChecker
@@ -184,6 +174,42 @@ class Regression:
 
         if self.config['weighted_by']['usage']:
             self.df['Weight'] *= self.df['Usage']
+
+    def _print_dropped(self, old_count: int, description: str) -> int:
+        new_count = len(self.df)
+        dropped = old_count - new_count
+        assert dropped >= 0
+        if dropped > 0:
+            self._log(f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} ({100*dropped/self.num_days:.1f}%) {description}')
+        return new_count
+
+    # noinspection PyTypeChecker,PyPackages
+    def _filter_dates(self) -> tuple[DatetimeIndex, DatetimeIndex, int]:
+        min_date_time = self.df['DateTime'].iloc[0]
+        max_date_time = self.df['DateTime'].iloc[-1]
+
+        filter_config = self.config['filter']
+        if filter_config['max_date']:
+            config_max_date = pd.to_datetime(filter_config['max_date'], format='%Y-%m-%d')
+            if config_max_date < max_date_time:
+                max_date_time = config_max_date
+                self.df.drop(self.df[self.df['DateTime'] > max_date_time].index, inplace=True)
+        if filter_config['min_date']:
+            config_min_date = pd.to_datetime(filter_config['min_date'], format='%Y-%m-%d')
+            if config_min_date > min_date_time:
+                min_date_time = config_min_date
+
+        num_days = (max_date_time - min_date_time).days + 1
+        if filter_config['max_days']:
+            max_days = filter_config['max_days']
+            if max_days < num_days:
+                num_days = max_days
+                min_date_time = max_date_time - pd.Timedelta(days=num_days - 1)
+
+        if min_date_time > self.df['DateTime'].iloc[0]:
+            self.df.drop(self.df[self.df['DateTime'] < min_date_time].index, inplace=True)
+
+        return min_date_time, max_date_time, num_days
 
     def _log(self, s: str):
         print(s)
@@ -208,7 +234,7 @@ class Regression:
         num_removed = len(dates) - len(new_dates)
         if self.config['filter']['verbose']:
             if config_key is not None:
-                self._log(f'Dropped {num_removed} rows for '
+                self._log(f'Dropped {num_removed} {'rows' if num_removed > 1 else 'row'} for '
                           f'{config_key.replace('_', ' ')}: {threshold}')
             elif num_removed > 0:
                 # for weight
@@ -225,10 +251,7 @@ class Regression:
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
-
-        self._log(f'\nN={len(self.df)} ({100*len(self.df)/self.num_days:.1f}%) between {date_string} '
-                  f'({self.num_days} days) - {self._weighted_by()}')
+        self._log(f'\nN={len(self.df)} ({100*len(self.df)/self.num_days:.1f}%) - {self._weighted_by()}')
         self._log('Pressure Counts:')
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.pressure == pressure]
