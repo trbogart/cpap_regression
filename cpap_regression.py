@@ -502,6 +502,15 @@ class Regression:
             self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {dropped_pressure}) tomorrow')
             self._log(f'  New mean Pressure: {mean_pressure(avg_pressure)}')
 
+        # calculate next pressure
+        # 1 - dropped pressure if it reduces count at either extreme to 0 (data might be lost otherwise)
+        # 2 - min pressure if count is 0 (can remove min_pressure config)
+        # 3 - max pressure if count is 0 (can remove max_pressure config)
+        # 4 - select lowest adjusted weight
+        #     - base weight is count or total usage scaled to 1.0/night average
+        #     - subtract last_pressure_boost for most recent pressure
+        #     - add random number between [0, random_weight) - random_weight <= 1 is a tie-breaker
+
         if self.config['weighted_by']['usage']:
             # weight by usage (same scale as row count)
             avg_usage = df['Usage'].mean()
@@ -513,16 +522,12 @@ class Regression:
             pressure_weights = df['Pressure'].value_counts()
 
         next_pressure = self.max_pressure
-        lowest_score = float('inf')
+        best_score = float('inf')
         extreme_pressures = (self.min_pressure, self.max_pressure)
         if dropped_pressure is not None and pressure_weights.get(dropped_pressure, 0) == 0:
             if dropped_pressure in extreme_pressures:
-                # always select dropped pressure if it reduces count at either extreme to 0
-                # otherwise the pressure will be lost unless min_pressure or max_pressure is set
-                # there is a similar check in the for loop, but prioritize dropped pressure
-                # since the other extreme must be locked by config
                 next_pressure = dropped_pressure
-                lowest_score = -float('inf')
+                best_score = -float('inf')
 
         config = self.config['next_pressure']
 
@@ -532,7 +537,6 @@ class Regression:
             pressure_weight = pressure_weights.get(pressure, 0)
 
             if pressure_weight == 0 and pressure in extreme_pressures:
-                # always select extreme weight with zero count (so it isn't lost or manual override can be removed)
                 pressure_boost = float('inf')
             elif config['last_pressure_boost'] and pressure == self.last_pressure:
                 # otherwise prefer most recent pressure
@@ -540,8 +544,8 @@ class Regression:
             else:
                 pressure_boost = 0
 
-            if config['random_weight']:
-                random_adjustment = random.random() * config['random_weight']
+            if config['random_sigma']:
+                random_adjustment = random.gauss(sigma= config['random_sigma'])
             else:
                 random_adjustment = 0
 
@@ -549,9 +553,9 @@ class Regression:
             if config['verbose']:
                 self._log(f'- {pressure}: {score:.2f}'
                           f' ({pressure_weight:.2f} + {random_adjustment:.2f} - {pressure_boost})')
-            if score < lowest_score:
+            if score < best_score:
                 next_pressure = pressure
-                lowest_score = score
+                best_score = score
 
         if next_pressure < self.last_pressure:
             self._log(f'Decrease Pressure from {self.last_pressure} to {next_pressure}')

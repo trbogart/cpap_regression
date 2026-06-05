@@ -13,8 +13,8 @@ filter:
   verbose: false # print details for configuration-based filtering
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 1 # boost for last pressure (reduces pressure count)
-  random_weight: 2.0 # max random number to add to pressure count (tie-breaker if < 1.0)
+  last_pressure_boost: 2 # boost for last pressure (reduces pressure count)
+  random_sigma: 1.0 # random sigma
   verbose: false
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
