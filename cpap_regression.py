@@ -162,6 +162,9 @@ class Regression:
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
         if not self.config['filter']['verbose'] and len(dates) < count:
             self._print_dropped(count, 'for configured filters')
+        if len(self.df) == 0:
+            print('All data filtered')
+            sys.exit(1)
 
         self.pressure = self.df['Pressure']
         if filter_config['min_pressure']:
@@ -193,6 +196,41 @@ class Regression:
 
         if self.config['weighted_by']['usage']:
             self.df['Weight'] *= self.df['Usage']
+
+    def run(self):
+        # noinspection PyStringConversionWithoutDunderMethod
+        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
+        self._log('Pressure Counts:')
+        for pressure in self.valid_pressures:
+            data_for_pressure = self.df[self.pressure == pressure]
+            dates = data_for_pressure['Date']
+            total_usage = data_for_pressure['Usage'].sum()
+            total_weight = data_for_pressure['Weight'].sum()
+            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
+                      f'{total_weight:.2f} total weight): {', '.join(dates)}')
+
+        if self.config['next_pressure']['enabled']:
+            self._next_pressure()
+
+        if len(self.df) < 2:
+            self._log(f'Minimum N=2')
+            sys.exit(0)
+
+        if self.config['all_correlations']['enabled']:
+            self._all_correlations()
+
+        # Correlation and linear regression
+        if self.config['linear']['enabled']:
+            self._linear()
+
+        if self.config['elastic_net']['enabled']:
+            self._elastic_net()
+
+        if self.config['bayesian']['enabled']:
+            self._bayesian()
+
+        if self.config['ard']['enabled']:
+            self._ard()
 
     def _print_dropped(self, old_count: int, description: str) -> int:
         new_count = len(self.df)
@@ -270,41 +308,6 @@ class Regression:
 
         self.df = filtered_df
         return new_dates
-
-    def run(self):
-        # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
-        self._log('Pressure Counts:')
-        for pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.pressure == pressure]
-            dates = data_for_pressure['Date']
-            total_usage = data_for_pressure['Usage'].sum()
-            total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2f} total weight): {', '.join(dates)}')
-
-        if self.config['next_pressure']['enabled']:
-            self._next_pressure()
-
-        if len(self.df) < 2:
-            self._log(f'Minimum N=2')
-            sys.exit(0)
-
-        if self.config['all_correlations']['enabled']:
-            self._all_correlations()
-
-        # Correlation and linear regression
-        if self.config['linear']['enabled']:
-            self._linear()
-
-        if self.config['elastic_net']['enabled']:
-            self._elastic_net()
-
-        if self.config['bayesian']['enabled']:
-            self._bayesian()
-
-        if self.config['ard']['enabled']:
-            self._ard()
 
     def _all_correlations(self):
         correlations = []
@@ -495,17 +498,17 @@ class Regression:
         avg_pressure = df['Pressure'].mean()
         center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
 
-        def mean_pressure(avg_pressure: float) -> str:
+        def mean_pressure() -> str:
             if avg_pressure > center_pressure:
-                suffix = f' ({avg_pressure - center_pressure:.3f} above center)'
+                suffix = f' ({avg_pressure - center_pressure:.3f} above center: {center_pressure:.1f})'
             elif avg_pressure < center_pressure:
-                suffix = f' ({center_pressure - avg_pressure:.3f} below center)'
+                suffix = f' ({center_pressure - avg_pressure:.3f} below center: {center_pressure:.1f})'
             else:
-                suffix = ''
+                suffix = f' (equal to center)'
 
             return f'{avg_pressure:.3f}{suffix}'
 
-        self._log(f'Mean Pressure: {mean_pressure(avg_pressure)}')
+        self._log(f'Mean Pressure: {mean_pressure()}')
         dropped_pressure = None
         if self.config['filter']['max_days'] and df.at[df.index[0], 'DateTime'] == self.min_date_time:
             df = df.iloc[1:]
@@ -514,7 +517,7 @@ class Regression:
             dropped_pressure = df.at[df.index[0], 'Pressure']
             # noinspection PyStringConversionWithoutDunderMethod
             self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {dropped_pressure}) tomorrow')
-            self._log(f'  New mean Pressure: {mean_pressure(avg_pressure)}')
+            self._log(f'  New mean Pressure: {mean_pressure()}')
 
         # calculate next pressure
         # priority is:
