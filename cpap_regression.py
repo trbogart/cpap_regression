@@ -169,12 +169,12 @@ class Regression:
         if filter_config['min_pressure']:
             self.min_pressure: float = filter_config['min_pressure']
             if not self._is_pressure_valid(self.min_pressure):
-                print(f"Invalid 'min_pressure': {self.min_pressure}")
+                print(f"Invalid 'min_pressure': {self.min_pressure:.1f}")
                 sys.exit(1)
             if self.last_pressure < self.min_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
-                self._log(f"Last pressure ({self.last_pressure}) below 'min_pressure' "
-                          f"({self.min_pressure}), using {last_valid_pressure} instead")
+                self._log(f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' "
+                          f"({self.min_pressure:.1f}), using {last_valid_pressure:.1f} instead")
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
@@ -182,13 +182,13 @@ class Regression:
         if filter_config['max_pressure']:
             self.max_pressure: float = filter_config['max_pressure']
             if not self._is_pressure_valid(self.max_pressure):
-                print(f"Invalid 'max_pressure': {self.max_pressure}")
+                print(f"Invalid 'max_pressure': {self.max_pressure:.1f}")
                 sys.exit(1)
             if self.last_pressure > self.max_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
                 self._log(
-                    f"Last pressure ({self.last_pressure}) above 'max_pressure' "
-                    f"({self.max_pressure}), using {last_valid_pressure} instead")
+                    f"Last pressure ({self.last_pressure:.1f}) above 'max_pressure' "
+                    f"({self.max_pressure:.1f}), using {last_valid_pressure:.1f} instead")
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
@@ -531,7 +531,7 @@ class Regression:
             # noinspection PyStringConversionWithoutDunderMethod
             dropped_pressure = df.at[df.index[0], 'Pressure']
             # noinspection PyStringConversionWithoutDunderMethod
-            self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {dropped_pressure}) tomorrow')
+            self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {dropped_pressure:.1f}) tomorrow')
             self._log(f'  New mean Pressure: {mean_pressure()}')
 
         # calculate next pressure
@@ -565,13 +565,13 @@ class Regression:
         # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
         # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
         if is_zero_extreme(self.last_pressure):
-            next_pressure = self.last_pressure
+            next_pressure: float = self.last_pressure
             best_score = -float('inf')
         elif is_zero_extreme(dropped_pressure):
-            next_pressure = dropped_pressure
+            next_pressure: float = dropped_pressure
             best_score = -float('inf')
         else:
-            next_pressure = self.max_pressure
+            next_pressure: float = self.max_pressure
             best_score = float('inf')
 
         config = self.config['next_pressure']
@@ -597,18 +597,18 @@ class Regression:
 
             score = pressure_weight + random_adjustment - pressure_boost
             if config['verbose']:
-                self._log(f'- {pressure}: {score:.2f}'
+                self._log(f'- {pressure:.1f}: {score:.2f}'
                           f' ({pressure_weight:.2g} + {random_adjustment:.2f} random - {pressure_boost} boost)')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
 
         if next_pressure < self.last_pressure:
-            self._log(f'Decrease Pressure from {self.last_pressure} to {next_pressure}')
+            self._log(f'Decrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f}')
         elif next_pressure > self.last_pressure:
-            self._log(f'Increase Pressure from {self.last_pressure} to {next_pressure}')
+            self._log(f'Increase Pressure from {self.last_pressure:.1f} to {next_pressure:.1f}')
         else:
-            self._log(f'Leave Pressure at {next_pressure}')
+            self._log(f'Leave Pressure at {next_pressure:.1f}')
 
 
 if __name__ == '__main__':
