@@ -4,7 +4,7 @@ filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure:  # optional min Pressure
+  min_pressure: 7.2 # optional min Pressure
   max_pressure:  # optional max Pressure
   max_leak_rate: 1.5 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
@@ -13,9 +13,9 @@ filter:
   verbose: false # print details for configuration-based filtering
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 2 # boost for last pressure (reduces pressure count)
+  last_pressure_boost: 3 # boost for last pressure (reduces count)
   random_sigma: 1.5 # random sigma
-  verbose: false
+  verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
   usage: false # true to weight by usage
