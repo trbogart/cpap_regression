@@ -274,14 +274,14 @@ class Regression:
         if self.log_file:
             print(s, file=self.log_file)
 
-    def _filter_config(self, dates: set, field: str, config_key: str) -> set:
+    def _filter_config(self, dates: set, field_name: str, config_key: str) -> set:
         threshold = self.config['filter'][config_key]
         if threshold is None:
             return dates
         if config_key.startswith('min_'):
-            filtered_df = self.df[self.df[field] >= threshold]
+            filtered_df = self.df[self.df[field_name] >= threshold]
         elif config_key.startswith('max_'):
-            filtered_df = self.df[self.df[field] <= threshold]
+            filtered_df = self.df[self.df[field_name] <= threshold]
         else:
             raise ValueError(f'Invalid config name: {config_key}')
 
@@ -296,15 +296,16 @@ class Regression:
                           f'{config_key.replace('_', ' ')}: {threshold}')
             elif num_removed > 0:
                 # for weight
-                self._log(f'Dropped {num_removed} rows with zero {field}')
+                self._log(f'Dropped {num_removed} rows with zero {field_name}')
             if num_removed > 0:
                 for _, row in removed_rows.iterrows():
                     line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
-                    if field != 'Pressure':
-                        line += f', {field}={row[field]:.2f}'
+                    if field_name != 'Pressure':
+                        line += f', {field_name}={row[field_name]:.2f}'
                     self._log(line)
-        elif num_removed == 0:
-            self._log(f"Config '{config_key}' filtered no rows")
+        elif num_removed == 0 and field_name == 'Pressure':
+            # only display this for controllable fields
+            self._log(f"Config '{config_key}' not used")
 
         self.df = filtered_df
         return new_dates
