@@ -501,12 +501,12 @@ class Regression:
     def _pressure_counts(self):
         self._log('Pressure Counts:')
 
-        for next_pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.pressure == next_pressure]
+        for pressure in self.valid_pressures:
+            data_for_pressure = self.df[self.pressure == pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {next_pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
+            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
                       f'{total_weight:.2g} total weight): {', '.join(dates)}')
 
         df = self.df
@@ -573,31 +573,29 @@ class Regression:
 
             # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
             # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
+            next_pressure = best_score = float('inf')
             if is_zero_extreme(self.last_pressure):
-                next_pressure: float = self.last_pressure
+                next_pressure = self.last_pressure
                 best_score = float('-inf')
             elif is_zero_extreme(dropped_pressure):
-                next_pressure: float = dropped_pressure
+                next_pressure = dropped_pressure
                 best_score = float('-inf')
-            else:
-                next_pressure: float = self.max_pressure
-                best_score = float('inf')
 
             if self.config['next_pressure']['verbose']:
                 self._log('Scores:')
-            for next_pressure in self.valid_pressures:
-                pressure_weight = pressure_weights.get(next_pressure, 0)
+            for pressure in self.valid_pressures:
+                pressure_weight = pressure_weights.get(pressure, 0)
 
-                if pressure_weight == 0 and next_pressure in extreme_pressures:
+                if pressure_weight == 0 and pressure in extreme_pressures:
                     # always select extreme pressure with zero count
                     pressure_boost = float('inf')
-                elif self.config['next_pressure']['last_pressure_boost'] and next_pressure == self.last_pressure:
+                elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
                     # otherwise prefer most recent pressure
                     pressure_boost = self.config['next_pressure']['last_pressure_boost']
                 else:
                     pressure_boost = 0
 
-                corr_adjustment = (next_pressure - self.min_pressure) * corr_mult # adjust by min pressure for readability
+                corr_adjustment = (pressure - self.min_pressure) * corr_mult # adjust by min pressure for readability
 
                 if self.config['next_pressure']['random_sigma']:
                     random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
@@ -606,10 +604,10 @@ class Regression:
 
                 score = pressure_weight + random_adjustment + corr_adjustment - pressure_boost
                 if self.config['next_pressure']['verbose']:
-                    self._log(f'- {next_pressure:.1f}: {score:.2f}'
+                    self._log(f'- {pressure:.1f}: {score:.2f}'
                               f' ({pressure_weight:.2g} + {random_adjustment:.2f} random + {corr_adjustment:.2f} corr - {pressure_boost} boost)')
                 if score < best_score:
-                    next_pressure = next_pressure
+                    next_pressure = pressure
                     best_score = score
 
             if next_pressure < self.last_pressure:
