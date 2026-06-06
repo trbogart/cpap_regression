@@ -525,12 +525,12 @@ class Regression:
         self._log(f'Mean Pressure: {mean_pressure()}')
         dropped_pressure = None
         if self.config['filter']['max_days'] and df.at[df.index[0], 'DateTime'] == self.min_date_time:
+            dropped_pressure = df.at[df.index[0], 'Pressure']
+            dropped_date = df.at[df.index[0], 'Date']
             df = df.iloc[1:]
             avg_pressure = df['Pressure'].mean()
             # noinspection PyStringConversionWithoutDunderMethod
-            dropped_pressure = df.at[df.index[0], 'Pressure']
-            # noinspection PyStringConversionWithoutDunderMethod
-            self._log(f'Will drop {df.at[df.index[0], 'Date']} (Pressure {dropped_pressure:.1f}) tomorrow')
+            self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
             self._log(f'  New mean Pressure: {mean_pressure()}')
 
         next_pr_config = self.config['next_pressure']
