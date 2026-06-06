@@ -542,7 +542,7 @@ class Regression:
         def is_zero_extreme(pressure: float | None) -> bool:
             if pressure is None:
                 return False
-            return pressure in extreme_pressures and pressure_weights.get(dropped_pressure, 0) == 0
+            return pressure in extreme_pressures and pressure_weights.get(pressure, 0) == 0
 
         # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
         # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
@@ -550,10 +550,10 @@ class Regression:
             next_pressure = self.last_pressure
             best_score = -float('inf')
         elif is_zero_extreme(dropped_pressure):
-            next_pressure = self.last_pressure
+            next_pressure = dropped_pressure
             best_score = -float('inf')
         else:
-            next_pressure = None
+            next_pressure = self.max_pressure
             best_score = float('inf')
 
         config = self.config['next_pressure']
