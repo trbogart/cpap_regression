@@ -198,12 +198,14 @@ class Regression:
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
+        if self.config['weighted_by']['usage']:
+            self.df['Weight'] *= self.df['Usage']
+        self.df['WeightIgnoringFrequency'] = self.df['Weight']
+
         if self.config['weighted_by']['frequency']:
             pressure_counts = self.pressure.value_counts()
             self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.pressure]
 
-        if self.config['weighted_by']['usage']:
-            self.df['Weight'] *= self.df['Usage']
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
@@ -321,7 +323,7 @@ class Regression:
 
         for i, field1 in enumerate(self.enabled_fields):
             for field2 in islice(self.enabled_fields, i):
-                correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key])
+                correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key], self.df['Weight'])
                 if not min_correlation or abs(correlation) > min_correlation:
                     correlations.append((field1, field2, correlation))
         correlations.sort(key=lambda t: abs(t[2]), reverse=True)
@@ -385,7 +387,7 @@ class Regression:
         config = self.config['linear']
         x = self.df[x_field.key]
         y = self.df[y_field.key]
-        correl = self._weighted_correlation(x, y)
+        correl = self._weighted_correlation(x, y, self.df['Weight'])
         if y_field.plot and x_field.plot and config['plot']:
             # noinspection PyTypeChecker
             x_min: float = x.min()
@@ -481,9 +483,8 @@ class Regression:
             s.append('usage')
         return '_'.join(s)
 
-    def _weighted_correlation(self, x, y):
+    def _weighted_correlation(self, x, y, weights) -> float:
         """Calculates the weighted Pearson correlation coefficient."""
-        weights = self.df['Weight']
         # Compute weighted means
         mean_x = np.average(x, weights=weights)
         mean_y = np.average(y, weights=weights)
@@ -539,9 +540,10 @@ class Regression:
             # 3 - min pressure if count is 0 (will be able to remove min_pressure config)
             # 4 - max pressure if count is 0 (will be able to remove max_pressure config)
             # 5 - select lowest adjusted weight
-            #     - base weight is count or total usage scaled to 1.0/night average
+            #     - base weight is count (or total usage scaled to 1.0/night average if weighted by usage)
+            #     - add (pressure-min_pressure) * corr_weight * pressure_date_correlation to encourage lower time skew
             #     - subtract last_pressure_boost for most recent pressure
-            #     - add random number between [0, random_weight) - random_weight <= 1 is a tie-breaker
+            #     - add random Gaussian number with random_sigma
 
             if self.config['weighted_by']['usage']:
                 # weight by usage (same scale as row count)
@@ -556,11 +558,11 @@ class Regression:
 
             extreme_pressures = (self.min_pressure, self.max_pressure)
 
-            # correlation between pressure and date, do not use _weighted_correlation (could ignore frequency weighting)
-            corr = np.corrcoef(df['Pressure'], df['Timestamp'])[0][1]
-            print(f'Correlation between Pressure and Date: {corr:.2f}')
+            pressure_date_correlation = self._weighted_correlation(
+                df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
+            print(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
             if self.config['next_pressure']['corr_weight']:
-                corr_mult = corr * self.config['next_pressure']['corr_weight']
+                corr_mult = pressure_date_correlation * self.config['next_pressure']['corr_weight']
             else:
                 corr_mult = 0
 
@@ -573,10 +575,10 @@ class Regression:
             # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
             if is_zero_extreme(self.last_pressure):
                 next_pressure: float = self.last_pressure
-                best_score = -float('inf')
+                best_score = float('-inf')
             elif is_zero_extreme(dropped_pressure):
                 next_pressure: float = dropped_pressure
-                best_score = -float('inf')
+                best_score = float('-inf')
             else:
                 next_pressure: float = self.max_pressure
                 best_score = float('inf')
@@ -588,7 +590,7 @@ class Regression:
 
                 if pressure_weight == 0 and next_pressure in extreme_pressures:
                     # always select extreme pressure with zero count
-                    pressure_boost = -float('inf')
+                    pressure_boost = float('inf')
                 elif self.config['next_pressure']['last_pressure_boost'] and next_pressure == self.last_pressure:
                     # otherwise prefer most recent pressure
                     pressure_boost = self.config['next_pressure']['last_pressure_boost']
