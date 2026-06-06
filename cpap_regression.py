@@ -534,8 +534,8 @@ class Regression:
         if self.config['next_pressure']['enabled']:
             # calculate next pressure
             # priority is:
-            # 1 - last pressure if either min or max and count is 0 (implying data was invalid, avoid pressure "falling off")
-            # 2 - dropped pressure if either min or max and new count will be 0 (avoid pressure "falling off")
+            # 1 - last pressure if either min or max and count is 0 (implying data was invalid, to avoid pressure "falling off")
+            # 2 - dropped pressure if either min or max and new count will be 0 (to avoid pressure "falling off")
             # 3 - min pressure if count is 0 (will be able to remove min_pressure config)
             # 4 - max pressure if count is 0 (will be able to remove max_pressure config)
             # 5 - select lowest adjusted weight
