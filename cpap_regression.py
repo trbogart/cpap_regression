@@ -46,7 +46,6 @@ class Field:
 
 
 class Regression:
-    # noinspection PyArgumentList
     def __init__(self, config_filename: str):
         with open(config_filename, 'r') as file:
             # Use safe_load to avoid executing arbitrary code from the file
@@ -169,24 +168,34 @@ class Regression:
         self.pressure = self.df['Pressure']
         if filter_config['min_pressure']:
             self.min_pressure: float = filter_config['min_pressure']
+            if not self._is_pressure_valid(self.min_pressure):
+                print(f"Invalid 'min_pressure': {self.min_pressure}")
+                sys.exit(1)
             if self.last_pressure < self.min_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
-                self._log(f"Last pressure ({self.last_pressure}) below 'min_pressure' ({self.min_pressure}), use {last_valid_pressure} instead")
+                self._log(f"Last pressure ({self.last_pressure}) below 'min_pressure' "
+                          f"({self.min_pressure}), using {last_valid_pressure} instead")
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
             self.min_pressure: float = min(self.last_pressure, self.pressure.min())
         if filter_config['max_pressure']:
             self.max_pressure: float = filter_config['max_pressure']
+            if not self._is_pressure_valid(self.max_pressure):
+                print(f"Invalid 'max_pressure': {self.max_pressure}")
+                sys.exit(1)
             if self.last_pressure > self.max_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
-                self._log(f"Last pressure ({self.last_pressure}) above 'max_pressure' ({self.max_pressure}), use {last_valid_pressure} instead")
+                self._log(
+                    f"Last pressure ({self.last_pressure}) above 'max_pressure' "
+                    f"({self.max_pressure}), using {last_valid_pressure} instead")
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
             self.max_pressure: float = max(self.last_pressure, self.pressure.max())
 
-        self.valid_pressures = [p / 5 for p in range(int(self.min_pressure * 5), int(self.max_pressure * 5) + 1)]
+        self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
+                                                     int(round(self.max_pressure * 5)) + 1)]
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
@@ -240,6 +249,11 @@ class Regression:
             self._log(
                 f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} ({100 * dropped / self.num_days:.1f}%) {description}')
         return new_count
+
+    @staticmethod
+    def _is_pressure_valid(pressure: float) -> bool:
+        scaled = pressure * 5
+        return round(scaled) == scaled
 
     # noinspection PyTypeChecker,PyPackages
     def _filter_dates(self) -> tuple[DatetimeIndex, DatetimeIndex, int]:
