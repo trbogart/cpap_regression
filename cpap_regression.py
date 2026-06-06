@@ -513,12 +513,11 @@ class Regression:
         center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
 
         def mean_pressure() -> str:
-            if avg_pressure > center_pressure:
-                suffix = f' ({avg_pressure - center_pressure:.3f} above center: {center_pressure:.1f})'
-            elif avg_pressure < center_pressure:
-                suffix = f' ({center_pressure - avg_pressure:.3f} below center: {center_pressure:.1f})'
+            center_diff = avg_pressure - center_pressure
+            if center_diff >= 0:
+                suffix = f' ({center_diff :.3f} above center: {center_pressure:.1f})'
             else:
-                suffix = f' (equal to center)'
+                suffix = f' ({-center_diff:.3f} below center: {center_pressure:.1f})'
 
             return f'{avg_pressure:.3f}{suffix}'
 
