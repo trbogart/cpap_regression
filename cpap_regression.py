@@ -500,12 +500,12 @@ class Regression:
     def _pressure_counts(self):
         self._log('Pressure Counts:')
 
-        for pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.pressure == pressure]
+        for valid_pressure in self.valid_pressures:
+            data_for_pressure = self.df[self.pressure == valid_pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
+            self._log(f'- {valid_pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
                       f'{total_weight:.2g} total weight): {', '.join(dates)}')
 
         df = self.df
@@ -522,18 +522,16 @@ class Regression:
             return f'{avg_pressure:.3f}{suffix}'
 
         self._log(f'Mean Pressure: {mean_pressure()}')
-        dropped_pressure = None
+        dropped_pressure: float | None = None
         if self.config['filter']['max_days'] and df.at[df.index[0], 'DateTime'] == self.min_date_time:
             dropped_pressure = df.at[df.index[0], 'Pressure']
-            dropped_date = df.at[df.index[0], 'Date']
+            dropped_date: str = df.at[df.index[0], 'Date']
             df = df.iloc[1:]
             avg_pressure = df['Pressure'].mean()
-            # noinspection PyStringConversionWithoutDunderMethod
             self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
             self._log(f'  New mean Pressure: {mean_pressure()}')
 
-        next_pr_config = self.config['next_pressure']
-        if next_pr_config['enabled']:
+        if self.config['next_pressure']['enabled']:
             # calculate next pressure
             # priority is:
             # 1 - last pressure if either min or max and count is 0 (implying data was invalid, avoid pressure "falling off")
@@ -561,7 +559,10 @@ class Regression:
             # correlation between pressure and date, do not use _weighted_correlation (could ignore frequency weighting)
             corr = np.corrcoef(df['Pressure'], df['Timestamp'])[0][1]
             print(f'Correlation between Pressure and Date: {corr:.2f}')
-            corr_mult = corr * next_pr_config['corr_weight'] if next_pr_config['corr_weight'] else 0
+            if self.config['next_pressure']['corr_weight']:
+                corr_mult = corr * self.config['next_pressure']['corr_weight']
+            else:
+                corr_mult = 0
 
             def is_zero_extreme(pressure: float | None) -> bool:
                 if pressure is None:
@@ -580,33 +581,33 @@ class Regression:
                 next_pressure: float = self.max_pressure
                 best_score = float('inf')
 
-            if next_pr_config['verbose']:
+            if self.config['next_pressure']['verbose']:
                 self._log('Scores:')
-            for pressure in self.valid_pressures:
-                pressure_weight = pressure_weights.get(pressure, 0)
+            for valid_pressure in self.valid_pressures:
+                pressure_weight = pressure_weights.get(valid_pressure, 0)
 
-                if pressure_weight == 0 and pressure in extreme_pressures:
+                if pressure_weight == 0 and valid_pressure in extreme_pressures:
                     # always select extreme pressure with zero count
                     pressure_boost = -float('inf')
-                elif next_pr_config['last_pressure_boost'] and pressure == self.last_pressure:
+                elif self.config['next_pressure']['last_pressure_boost'] and valid_pressure == self.last_pressure:
                     # otherwise prefer most recent pressure
-                    pressure_boost = next_pr_config['last_pressure_boost']
+                    pressure_boost = self.config['next_pressure']['last_pressure_boost']
                 else:
                     pressure_boost = 0
 
-                corr_adjustment = (pressure - self.min_pressure) * corr_mult # adjust by min pressure for readability
+                corr_adjustment = (valid_pressure - self.min_pressure) * corr_mult # adjust by min pressure for readability
 
-                if next_pr_config['random_sigma']:
-                    random_adjustment = random.gauss(sigma=next_pr_config['random_sigma'])
+                if self.config['next_pressure']['random_sigma']:
+                    random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
                 else:
                     random_adjustment = 0
 
                 score = pressure_weight + random_adjustment + corr_adjustment - pressure_boost
-                if next_pr_config['verbose']:
-                    self._log(f'- {pressure:.1f}: {score:.2f}'
+                if self.config['next_pressure']['verbose']:
+                    self._log(f'- {valid_pressure:.1f}: {score:.2f}'
                               f' ({pressure_weight:.2g} + {random_adjustment:.2f} random + {corr_adjustment:.2f} corr - {pressure_boost} boost)')
                 if score < best_score:
-                    next_pressure = pressure
+                    next_pressure = valid_pressure
                     best_score = score
 
             if next_pressure < self.last_pressure:
