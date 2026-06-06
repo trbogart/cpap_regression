@@ -15,6 +15,7 @@ next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3 # boost for last pressure (reduces count)
   random_sigma: 1.5 # random sigma
+  corr_weight: 5 # optional correlation weight, adjust counts by pressure * corr_weight if set
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure

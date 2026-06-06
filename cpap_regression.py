@@ -558,6 +558,11 @@ class Regression:
 
             extreme_pressures = (self.min_pressure, self.max_pressure)
 
+            # correlation between pressure and date, do not use _weighted_correlation (could ignore frequency weighting)
+            corr = np.corrcoef(df['Pressure'], df['Timestamp'])[0][1]
+            print(f'Correlation between Pressure and Date: {corr:.2f}')
+            corr_mult = corr * next_pr_config['corr_weight'] if next_pr_config['corr_weight'] else 0
+
             def is_zero_extreme(pressure: float | None) -> bool:
                 if pressure is None:
                     return False
@@ -589,15 +594,17 @@ class Regression:
                 else:
                     pressure_boost = 0
 
+                corr_adjustment = (pressure - self.min_pressure) * corr_mult # adjust by min pressure for readability
+
                 if next_pr_config['random_sigma']:
                     random_adjustment = random.gauss(sigma=next_pr_config['random_sigma'])
                 else:
                     random_adjustment = 0
 
-                score = pressure_weight + random_adjustment - pressure_boost
+                score = pressure_weight + random_adjustment + corr_adjustment - pressure_boost
                 if next_pr_config['verbose']:
                     self._log(f'- {pressure:.1f}: {score:.2f}'
-                              f' ({pressure_weight:.2g} + {random_adjustment:.2f} random - {pressure_boost} boost)')
+                              f' ({pressure_weight:.2g} + {random_adjustment:.2f} random + {corr_adjustment:.2f} corr - {pressure_boost} boost)')
                 if score < best_score:
                     next_pressure = pressure
                     best_score = score
