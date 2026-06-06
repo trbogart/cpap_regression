@@ -207,7 +207,7 @@ class Regression:
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
             self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2f} total weight): {', '.join(dates)}')
+                      f'{total_weight:.2g} total weight): {', '.join(dates)}')
 
         if self.config['next_pressure']['enabled']:
             self._next_pressure()
@@ -584,7 +584,7 @@ class Regression:
             score = pressure_weight + random_adjustment - pressure_boost
             if config['verbose']:
                 self._log(f'- {pressure}: {score:.2f}'
-                          f' ({pressure_weight:.2f} + {random_adjustment:.2f} random - {pressure_boost}) boost')
+                          f' ({pressure_weight:.2g} + {random_adjustment:.2f} random - {pressure_boost} boost)')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
