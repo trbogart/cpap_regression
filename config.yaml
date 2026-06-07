@@ -1,13 +1,13 @@
-# TODO after balanced, enable save_logs and stats and disable next_pressure.verbose
-# TODO increase max_days to 91 after balanced? (each stage will take ~4-5 weeks)
+# TODO after balanced (before adding new 7.2 data), temporarily enable save_logs and stats,
+# TODO then drop min_date and max_pressure, rebalance, and disable next_pressure.verbose and save_logs and stats
 data_file: cpap.csv # CSV file
 save_logs: false # save logs
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
-  min_date:  # optional min date in yyyy-mm-dd format
+  max_days: 91 # optional maximum number of days to include (applied after min_date and max_date)
+  min_date: 2026-05-15 # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
-  max_pressure:  # optional max Pressure
+  max_pressure: 7.8 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
