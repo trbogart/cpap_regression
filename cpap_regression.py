@@ -524,13 +524,16 @@ class Regression:
 
         self._log(f'Mean Pressure: {mean_pressure()}')
         dropped_pressure: float | None = None
-        if self.config['filter']['max_days'] and df.at[df.index[0], 'DateTime'] == self.min_date_time:
-            dropped_pressure = df.at[df.index[0], 'Pressure']
-            dropped_date: str = df.at[df.index[0], 'Date']
-            df = df.iloc[1:]
-            avg_pressure = df['Pressure'].mean()
-            self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
-            self._log(f'  New mean Pressure: {mean_pressure()}')
+        if self.config['filter']['max_days'] and self.num_days == self.config['filter']['max_days']:
+            # at maximum number of days, but first day may be missing or invalid
+            # note: can't just check self.min_date_time first because it can also be set by min_date config
+            if df.at[df.index[0], 'DateTime'] == self.min_date_time:
+                dropped_pressure = df.at[df.index[0], 'Pressure']
+                dropped_date: str = df.at[df.index[0], 'Date']
+                df = df.iloc[1:]
+                avg_pressure = df['Pressure'].mean()
+                self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
+                self._log(f'  New mean Pressure: {mean_pressure()}')
 
         if self.config['next_pressure']['enabled']:
             # calculate next pressure
@@ -566,10 +569,8 @@ class Regression:
             else:
                 corr_mult = 0
 
-            def is_zero_extreme(pressure: float | None) -> bool:
-                if pressure is None:
-                    return False
-                return pressure in extreme_pressures and pressure_weights.get(pressure, 0) == 0
+            def is_zero_extreme(pr: float) -> bool:
+                return pr in extreme_pressures and pressure_weights.get(pr, 0) == 0
 
             # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
             # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
@@ -577,12 +578,12 @@ class Regression:
             if is_zero_extreme(self.last_pressure):
                 next_pressure = self.last_pressure
                 best_score = float('-inf')
-            elif is_zero_extreme(dropped_pressure):
+            elif dropped_pressure is not None and is_zero_extreme(dropped_pressure):
                 next_pressure = dropped_pressure
                 best_score = float('-inf')
 
             if self.config['next_pressure']['verbose']:
-                self._log('Scores:')
+                self._log(f'Scores:')
             for pressure in self.valid_pressures:
                 pressure_weight = pressure_weights.get(pressure, 0)
 
@@ -610,12 +611,14 @@ class Regression:
                     next_pressure = pressure
                     best_score = score
 
+            # noinspection PyUnresolvedReferences
+            tomorrow = (self.max_date_time + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
             if next_pressure < self.last_pressure:
-                self._log(f'Decrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f}')
+                self._log(f'Decrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
             elif next_pressure > self.last_pressure:
-                self._log(f'Increase Pressure from {self.last_pressure:.1f} to {next_pressure:.1f}')
+                self._log(f'Increase Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
             else:
-                self._log(f'Leave Pressure at {next_pressure:.1f}')
+                self._log(f'Leave Pressure at {next_pressure:.1f} for {tomorrow}')
 
 
 if __name__ == '__main__':
