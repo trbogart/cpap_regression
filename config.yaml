@@ -1,4 +1,4 @@
-# TODO after balancedd, enable save_logs and stats and disable next_pressure.verbose
+# TODO after balanced, enable save_logs and stats and disable next_pressure.verbose
 # TODO increase max_days to 91 after balanced? (each stage will take ~4-5 weeks)
 data_file: cpap.csv # CSV file
 save_logs: false # save logs
