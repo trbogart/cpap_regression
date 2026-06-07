@@ -1,6 +1,6 @@
 # TODO balance in phases (target max count - min count <= 2 and pressure/date correlation < 0.1)
-# - phase 1: balance recent [6.8, 8.2]
-# - phase 2: remove excluded pressures and min_date - balance all data
+# - phase 1: balance [6.8, 8.2] for 56 days (8 weeks)
+# - phase 2: increase count to 91 days (13 weeks = 1 quarter)?
 # - phase TBD: add 8.4 pressure? gather more data with same pressures? quit?
 # TODO stats.enabled=true and next_pressure.verbose=false when finished and between phases
 
@@ -9,8 +9,8 @@ stats:
   enabled: false # false to disable all stats and log file
   save_logs: true # save logs (unless stats are disabled)
 filter:
-  max_days: 91 # optional maximum number of days to include (applied after min_date and max_date)
-  min_date: 2026-05-15 # optional min date in yyyy-mm-dd format
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
   max_pressure:  # optional max Pressure
@@ -21,9 +21,9 @@ filter:
   verbose: false # print details for configuration-based filtering
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 2.0 # optional boost for last pressure (reduces adjusts count)
+  last_pressure_boost: 2 # optional boost for last pressure (reduces adjusts count)
   random_sigma: 1.5 # optional sigma used to randomly adjust counts
-  excluded_pressures: [7.2] # list of pressures that are never recommended
+  excluded_pressures: [] # list of pressures that are never recommended
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure

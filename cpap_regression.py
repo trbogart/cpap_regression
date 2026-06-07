@@ -616,8 +616,8 @@ class Regression:
 
                 score = pressure_weight + random_adjustment - pressure_boost
                 if self.config['next_pressure']['verbose']:
-                    self._log(f'- {pressure:.1f}: {score:.2f}'
-                              f' ({pressure_weight:.2g} + {random_adjustment:.2f} random - {pressure_boost} boost)')
+                    self._log(f'- {pressure:3.1f}: {score:5.2f}'
+                              f' = {pressure_weight:2.2g} {random_adjustment:+.2f} random {-pressure_boost:+g} boost')
                 if score < best_score:
                     next_pressure = pressure
                     best_score = score
