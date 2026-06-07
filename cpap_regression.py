@@ -536,6 +536,11 @@ class Regression:
                 self._log(f'  New mean Pressure: {mean_pressure()}')
 
         if self.config['next_pressure']['enabled']:
+            if self.config['next_pressure']['excluded_pressures']:
+                excluded_pressures = set[float](self.config['next_pressure']['excluded_pressures'])
+            else:
+                excluded_pressures = set[float]()
+
             # calculate next pressure
             # priority is:
             # 1 - last pressure if either min or max and count is 0 (implying data was invalid, to avoid pressure "falling off")
@@ -587,7 +592,10 @@ class Regression:
             for pressure in self.valid_pressures:
                 pressure_weight = pressure_weights.get(pressure, 0)
 
-                if pressure_weight == 0 and pressure in extreme_pressures:
+                if pressure in excluded_pressures:
+                    # never select excluded pressure
+                    pressure_boost = float('-inf')
+                elif pressure_weight == 0 and pressure in extreme_pressures:
                     # always select extreme pressure with zero count
                     pressure_boost = float('inf')
                 elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
