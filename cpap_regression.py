@@ -534,6 +534,9 @@ class Regression:
                 avg_pressure = df['Pressure'].mean()
                 self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
                 self._log(f'  New mean Pressure: {mean_pressure()}')
+        pressure_date_correlation = self._weighted_correlation(
+            df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
+        print(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
 
         if self.config['next_pressure']['enabled']:
             excluded_pressures = set[float](self.config['next_pressure']['excluded_pressures'])
@@ -560,11 +563,7 @@ class Regression:
                 # weight by row count
                 pressure_weights = df['Pressure'].value_counts()
 
-            extreme_pressures = (self.min_pressure, self.max_pressure)
-
-            pressure_date_correlation = self._weighted_correlation(
-                df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
-            print(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+            extreme_pressures = {self.min_pressure, self.max_pressure}
 
             def is_zero_extreme(pr: float) -> bool:
                 return pr in extreme_pressures and pr not in excluded_pressures and pressure_weights.get(pr, 0) == 0
