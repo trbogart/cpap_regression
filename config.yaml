@@ -1,8 +1,8 @@
 # TODO balance in phases (max count - min count <= 2 and pressure/date correlation < 0.1)
 # - phase 1: manual 7.0 x2, 7.8 x2, 7.4 x2, 7.0 x2
-#     - results in 5±1 for each pressure in [7.0, 7.8], with minimal time correlation
+#     - results in 5±1 for each pressure in [7.0, 7.8], exactly centered, with minimal time correlation
 # - phase 2: enabled=true, remove min_date and max_pressure: balance [7.0, 8.2]
-# - phase 3: add 8.4 pressure? quit?
+# - phase 3: add 8.4 pressure? gather more data with same pressures? quit?
 # TODO enable save_logs and stats and disable next_pressure.verbose when finished and between phases
 
 data_file: cpap.csv # CSV file
