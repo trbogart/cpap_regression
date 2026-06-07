@@ -1,12 +1,14 @@
-# TODO balance in phases (max count - min count <= 2 and pressure/date correlation < 0.1)
-# - phase 1: manual 7.0 x2, 7.8 x2, 7.4 x2, 7.0 x2
-#     - results in 5±1 for each pressure in [7.0, 7.8], exactly centered, with minimal time correlation
-# - phase 2: enabled=true, remove min_date and max_pressure: balance [7.0, 8.2]
-# - phase 3: add 8.4 pressure? gather more data with same pressures? quit?
+# TODO balance in phases (target max count - min count <= 2 and pressure/date correlation < 0.1)
+# - phase 1: balance recent [6.8, 7.8]
+# - phase 2: remove max_pressure - balance recent [6.8, 8.0]
+# - phase 3: remove excluded pressures and min_date - balance full [6.8, 8.2]
+# - phase TBD: add 6.8 and/or 8.4 pressure? gather more data with same pressures? quit?
 # TODO enable save_logs and stats and disable next_pressure.verbose when finished and between phases
 
 data_file: cpap.csv # CSV file
-save_logs: false # save logs
+stats:
+  enabled: false # false to disable all stats and log file
+  save_logs: false # save logs (unless stats are disabled)
 filter:
   max_days: 91 # optional maximum number of days to include (applied after min_date and max_date)
   min_date: 2026-05-15 # optional min date in yyyy-mm-dd format
@@ -19,10 +21,10 @@ filter:
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
 next_pressure:
-  enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
+  enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3.0 # optional boost for last pressure (reduces adjusts count)
   random_sigma: 1.5 # optional sigma used to randomly adjust counts
-  excluded_pressures: [] # list of pressures that are never recommended
+  excluded_pressures: [7.2] # list of pressures that are never recommended
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
@@ -32,14 +34,14 @@ all_correlations:
   num_correlations: # optional number of correlations to display between all fields (null to display all)
   min_correlation: 0.5 # optional minimum correlation to display (default 0)
 linear:
-  enabled: false # true to enable linear regression (including correlation and plotting)
+  enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
   min_correlation: 0.1 # optional minimum correlation to display (default 0)
   plot: true # true to enable plotting when enabled for both x and y fields
   plot_quadratic: true # include quadratic regression in plots
   save_plots: true # save plots
 elastic_net:
-  enabled: false # true to enable ElasticNet regression using multi_x_field
+  enabled: true # true to enable ElasticNet regression using multi_x_field
   alpha: 0.2 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
   seed: 42 # random seed
@@ -47,7 +49,7 @@ bayesian:
   enabled: false # perform BayesianRidge regression using multi_x_field
   min_weight: 0.1 # optional minimum BayesianRidge weight to print
 ard:
-  enabled: false # perform ARD Bayesian regression using multi_x_field
+  enabled: true # perform ARD Bayesian regression using multi_x_field
   min_weight: 0.1 # optional minimum ARD weight to print
 # fields
 # - key: key in CSV

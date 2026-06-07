@@ -94,7 +94,10 @@ class Regression:
         self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
 
         # Dates have to be known before opening log file (ignoring value filtering)
-        self.log_file = open(self._log_filename(), 'w') if self.config['save_logs'] else None
+        if self.config['stats']['enabled'] and self.config['stats']['save_logs']:
+            self.log_file = open(self._log_filename(), 'w')
+        else:
+            self.log_file = None
 
         date_counts = self.df['Date'].value_counts()
         if date_counts.iloc[0] > 1:
@@ -213,24 +216,25 @@ class Regression:
         self._pressure_counts()
 
         if len(self.df) < 2:
-            self._log(f'Minimum N=2')
+            self._log('Minimum N=2')
             sys.exit(0)
 
-        if self.config['all_correlations']['enabled']:
-            self._all_correlations()
+        if self.config['stats']['enabled']:
+            if self.config['all_correlations']['enabled']:
+                self._all_correlations()
 
-        # Correlation and linear regression
-        if self.config['linear']['enabled']:
-            self._linear()
+            # Correlation and linear regression
+            if self.config['linear']['enabled']:
+                self._linear()
 
-        if self.config['elastic_net']['enabled']:
-            self._elastic_net()
+            if self.config['elastic_net']['enabled']:
+                self._elastic_net()
 
-        if self.config['bayesian']['enabled']:
-            self._bayesian()
+            if self.config['bayesian']['enabled']:
+                self._bayesian()
 
-        if self.config['ard']['enabled']:
-            self._ard()
+            if self.config['ard']['enabled']:
+                self._ard()
 
     def _print_dropped(self, old_count: int, description: str) -> int:
         new_count = len(self.df)
@@ -542,8 +546,6 @@ class Regression:
 
 
         if self.config['next_pressure']['enabled']:
-            excluded_pressures = set[float](self.config['next_pressure']['excluded_pressures'])
-
             # calculate next pressure
             # priority is:
             # 1 - last pressure if either min or max and count is 0 (implying data was invalid, to avoid pressure "falling off")
@@ -571,9 +573,14 @@ class Regression:
             def is_zero_extreme(pr: float) -> bool:
                 return pr in extreme_pressures and pr not in excluded_pressures and pressure_weights.get(pr, 0) == 0
 
+            excluded_pressures = {
+                pr: pressure_weights.get(pr, 0) for pr in self.config['next_pressure']['excluded_pressures']
+            }
+
             # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
             # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
             next_pressure = best_score = float('inf')
+            max_non_excluded_weight = 0
             if is_zero_extreme(self.last_pressure):
                 next_pressure = self.last_pressure
                 best_score = float('-inf')
@@ -589,14 +596,18 @@ class Regression:
                 if pressure in excluded_pressures:
                     # never select excluded pressure
                     pressure_boost = float('-inf')
-                elif pressure_weight == 0 and pressure in extreme_pressures:
-                    # always select extreme pressure with zero count
-                    pressure_boost = float('inf')
-                elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
-                    # otherwise prefer most recent pressure
-                    pressure_boost = self.config['next_pressure']['last_pressure_boost']
                 else:
-                    pressure_boost = 0
+                    if pressure_weight > max_non_excluded_weight:
+                        max_non_excluded_weight = pressure_weight
+
+                    if pressure_weight == 0 and pressure in extreme_pressures:
+                        # always select extreme pressure with zero count
+                        pressure_boost = float('inf')
+                    elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
+                        # otherwise prefer most recent pressure
+                        pressure_boost = self.config['next_pressure']['last_pressure_boost']
+                    else:
+                        pressure_boost = 0
 
                 if self.config['next_pressure']['random_sigma']:
                     random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
@@ -619,6 +630,11 @@ class Regression:
                 self._log(f'Increase Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
             else:
                 self._log(f'Leave Pressure at {next_pressure:.1f} for {tomorrow}')
+
+            for pressure, weight in excluded_pressures.items():
+                if max_non_excluded_weight >= weight:
+                    self._log(f'Excluded Pressure {pressure:.1f} is not most frequent, consider updating config')
+
 
 
 if __name__ == '__main__':
