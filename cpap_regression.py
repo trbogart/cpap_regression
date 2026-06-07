@@ -522,7 +522,9 @@ class Regression:
 
             return f'{avg_pressure:.3f}{suffix}'
 
+        pressure_date_correlation = self._weighted_correlation(df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
         self._log(f'Mean Pressure: {mean_pressure()}')
+        self._log(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
         dropped_pressure: float | None = None
         if self.config['filter']['max_days'] and self.num_days == self.config['filter']['max_days']:
             # at maximum number of days, but first day may be missing or invalid
@@ -532,11 +534,12 @@ class Regression:
                 dropped_date: str = df.at[df.index[0], 'Date']
                 df = df.iloc[1:]
                 avg_pressure = df['Pressure'].mean()
+                pressure_date_correlation = self._weighted_correlation(df['Pressure'], df['Timestamp'],
+                                                                       df['WeightIgnoringFrequency'])
                 self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
                 self._log(f'  New mean Pressure: {mean_pressure()}')
-        pressure_date_correlation = self._weighted_correlation(
-            df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
-        print(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+                self._log(f'  New correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+
 
         if self.config['next_pressure']['enabled']:
             excluded_pressures = set[float](self.config['next_pressure']['excluded_pressures'])
