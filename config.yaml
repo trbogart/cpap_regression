@@ -1,6 +1,7 @@
 # TODO balance in phases (max count - min count <= 2 and pressure/date correlation < 0.1)
-# - phase 1: manual 7.0, 7.0, 7.8, 7.8, 7.6, 7.4, 7.4, 7.0, 7.0, 7.0: 5 for each pressure in [7.0, 7.8] except 6 for 7.6
-# - phase 2: enabled=true, last_pressure_boost=3.0, remove min_date: balance 7.0-8.2
+# - phase 1: manual 7.0 x2, 7.8 x2, 7.6 x1, 7.4 x2, 7.0 x3:
+#     - results in 5 for each pressure in [7.0, 7.8] except 6 for 7.2, with minimal time correlation
+# - phase 2: enabled=true, remove min_date and max_pressure: balance 7.0-8.2
 # - phase 3: add 8.4 pressure? quit?
 # TODO enable save_logs and stats and disable next_pressure.verbose when finished and between phases
 
