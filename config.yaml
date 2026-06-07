@@ -1,6 +1,6 @@
 # TODO balance in phases (max count - min count <= 2 and pressure/date correlation < 0.1)
 # - phase 1: min_date=2026-05-15, max_pressure=7.8, excluded_pressures=[7.2]: balance 7.0-7.8
-# - phase 2: remove min_date and excluded_pressures: balance 7.0-8.2
+# - phase 2: random_sigma=1.2, last_pressure_boost=3.0, remove min_date and excluded_pressures: balance 7.0-8.2
 # - phase 3: add 8.4 pressure? quit?
 # TODO enable save_logs and stats and disable next_pressure.verbose when finished and between phases
 
@@ -8,7 +8,7 @@ data_file: cpap.csv # CSV file
 save_logs: false # save logs
 filter:
   max_days: 91 # optional maximum number of days to include (applied after min_date and max_date)
-  min_date: 2026-05-10 # optional min date in yyyy-mm-dd format
+  min_date: 2026-05-15 # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
   max_pressure: 7.8 # optional max Pressure
@@ -19,8 +19,8 @@ filter:
   verbose: false # print details for configuration-based filtering
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 3.0 # optional boost for last pressure (reduces adjusts count)
-  random_sigma: 1.2 # optional sigma used to randomly adjust counts
+  last_pressure_boost: 2.0 # optional boost for last pressure (reduces adjusts count)
+  random_sigma: 0.2 # optional sigma used to randomly adjust counts
   corr_weight: 5.0 # optional correlation weight, adjust counts by pressure * corr_weight if set (5 to scale pressure)
   excluded_pressures: [7.2] # list of pressures that are never recommended
   verbose: true
