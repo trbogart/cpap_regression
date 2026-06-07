@@ -1,14 +1,12 @@
-# TODO after balanced at 6 wks, remove max_pressure, increase max_days to 63 (9 wks), temporarily enable save_logs and stats
-# TODO after balanced at 9 wks, increase max_days to 91 (13 wks), temporarily enable save_logs and stats
-# TODO after balanced at 13 wks, permanently enable save_logs and stats
+# TODO enable save_logs and stats after balanced
 data_file: cpap.csv # CSV file
 save_logs: false # save logs
 filter:
-  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
-  max_pressure: 8 # optional max Pressure
+  max_pressure:  # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
@@ -16,8 +14,8 @@ filter:
   verbose: false # print details for configuration-based filtering
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 2.0 # optional boost for last pressure (reduces count)
-  random_sigma: 1.0 # optional sigma used to randomly adjust counts
+  last_pressure_boost: 3.0 # optional boost for last pressure (reduces count)
+  random_sigma: 1.25 # optional sigma used to randomly adjust counts
   corr_weight: 5.0 # optional correlation weight, adjust counts by pressure * corr_weight if set
   verbose: true
 weighted_by:
