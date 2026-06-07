@@ -1,11 +1,14 @@
+# TODO after balanced at 6 wks, remove max_pressure, increase max_days to 63 (9 wks), temporarily enable save_logs and stats
+# TODO after balanced at 9 wks, increase max_days to 91 (13 wks), temporarily enable save_logs and stats
+# TODO after balanced at 13 wks, permanently enable save_logs and stats
 data_file: cpap.csv # CSV file
 save_logs: false # save logs
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
-  max_pressure:  # optional max Pressure
+  max_pressure: 8 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
@@ -28,9 +31,9 @@ linear:
   enabled: false # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
   min_correlation: 0.1 # optional minimum correlation to display (default 0)
-  plot: false # true to enable plotting when enabled for both x and y fields
-  plot_quadratic: false # include quadratic regression in plots
-  save_plots: false # save plots
+  plot: true # true to enable plotting when enabled for both x and y fields
+  plot_quadratic: true # include quadratic regression in plots
+  save_plots: true # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field
   alpha: 0.2 # alpha for ElasticNet regression
