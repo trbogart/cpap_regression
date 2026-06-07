@@ -536,10 +536,7 @@ class Regression:
                 self._log(f'  New mean Pressure: {mean_pressure()}')
 
         if self.config['next_pressure']['enabled']:
-            if self.config['next_pressure']['excluded_pressures']:
-                excluded_pressures = set[float](self.config['next_pressure']['excluded_pressures'])
-            else:
-                excluded_pressures = set[float]()
+            excluded_pressures = set[float](self.config['next_pressure']['excluded_pressures'])
 
             # calculate next pressure
             # priority is:
@@ -570,7 +567,7 @@ class Regression:
             print(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
 
             def is_zero_extreme(pr: float) -> bool:
-                return pr in extreme_pressures and pressure_weights.get(pr, 0) == 0
+                return pr in extreme_pressures and pr not in excluded_pressures and pressure_weights.get(pr, 0) == 0
 
             # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
             # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
