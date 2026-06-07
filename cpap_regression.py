@@ -549,7 +549,6 @@ class Regression:
             # 4 - max pressure if count is 0 (will be able to remove max_pressure config)
             # 5 - select lowest adjusted weight
             #     - base weight is count (or total usage scaled to 1.0/night average if weighted by usage)
-            #     - add (pressure-min_pressure) * corr_weight * pressure_date_correlation to encourage lower time skew
             #     - subtract last_pressure_boost for most recent pressure
             #     - add random Gaussian number with random_sigma
 
@@ -569,10 +568,6 @@ class Regression:
             pressure_date_correlation = self._weighted_correlation(
                 df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
             print(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
-            if self.config['next_pressure']['corr_weight']:
-                corr_mult = pressure_date_correlation * self.config['next_pressure']['corr_weight']
-            else:
-                corr_mult = 0
 
             def is_zero_extreme(pr: float) -> bool:
                 return pr in extreme_pressures and pressure_weights.get(pr, 0) == 0
@@ -604,17 +599,15 @@ class Regression:
                 else:
                     pressure_boost = 0
 
-                corr_adjustment = (pressure - self.min_pressure) * corr_mult # adjust by min pressure for readability
-
                 if self.config['next_pressure']['random_sigma']:
                     random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
                 else:
                     random_adjustment = 0
 
-                score = pressure_weight + random_adjustment + corr_adjustment - pressure_boost
+                score = pressure_weight + random_adjustment - pressure_boost
                 if self.config['next_pressure']['verbose']:
                     self._log(f'- {pressure:.1f}: {score:.2f}'
-                              f' ({pressure_weight:.2g} + {random_adjustment:.2f} random + {corr_adjustment:.2f} corr - {pressure_boost} boost)')
+                              f' ({pressure_weight:.2g} + {random_adjustment:.2f} random - {pressure_boost} boost)')
                 if score < best_score:
                     next_pressure = pressure
                     best_score = score

@@ -21,7 +21,6 @@ next_pressure:
   enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3.0 # optional boost for last pressure (reduces adjusts count)
   random_sigma: 0.2 # optional sigma used to randomly adjust counts
-  corr_weight: 5.0 # optional correlation weight, adjust counts by pressure * corr_weight if set (5 to scale pressure)
   excluded_pressures: [] # list of pressures that are never recommended
   verbose: true
 weighted_by:
