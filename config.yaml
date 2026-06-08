@@ -1,14 +1,10 @@
-# TODO stats.enabled=true and next_pressure.verbose=false when balanced (est. early July)
-# TODO target max count - min count <= 2 and pressure/date correlation < 0.1
-# TODO can drop min_date on 8/9/2026
-
 data_file: cpap.csv # CSV file
 stats:
   enabled: false # false to disable all stats and log file
   save_logs: true # save logs (unless stats are disabled)
 filter:
   max_days: 91 # optional maximum number of days to include (applied after min_date and max_date)
-  min_date: 2026-05-11 # optional min date in yyyy-mm-dd format
+  min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
   max_pressure:  # optional max Pressure
