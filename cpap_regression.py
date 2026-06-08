@@ -68,6 +68,7 @@ class Regression:
             columns.add('Sleep')
         calculate_efficiency = 'min_sleep_efficiency' in filter_config
         calculate_rdi = False
+        calculate_ned_mean_split = False
 
         for field in self.enabled_fields:
             if field.key == 'RDI':
@@ -76,6 +77,8 @@ class Regression:
                 calculate_efficiency = True
             elif field.key == 'Timestamp':
                 pass  # calculated from Date, which is always included
+            elif field.key == 'NED Mean Split':
+                calculate_ned_mean_split = True
             else:
                 columns.add(field.key)
         if calculate_efficiency:
@@ -84,6 +87,9 @@ class Regression:
         if calculate_rdi:
             columns.add('AHI')
             columns.add('RERA')
+        if calculate_ned_mean_split:
+            columns.add('H1 NED Mean')
+            columns.add('H2 NED Mean')
 
         self.df = pd.read_csv(self.config['data_file'], usecols=list(columns))
 
@@ -152,6 +158,9 @@ class Regression:
 
         if calculate_rdi:
             self.df['RDI'] = self.df['AHI'] + self.df['RERA']
+
+        if calculate_ned_mean_split:
+            self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
 
         # filter by config
         dates = set(self.df['Date'])
@@ -423,7 +432,7 @@ class Regression:
                 title += f' - {weighted_by}'
 
             plt.scatter(x, y)
-            plt.xlabel(f'{y_field.name} vs. {x_field.name} (r = {correl:.2f})')
+            plt.xlabel(f'{y_field.name} vs. {x_field.name} (r = {correl:.3f})')
             plt.ylabel(y_field.name)
             plt.title(title)
             plt.tight_layout()
