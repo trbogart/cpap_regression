@@ -59,41 +59,40 @@ ard:
 fields:
   - key: Comb FL
     name: Combined FL
-    y_field: false # disable - strongly correlated with other metrics
+    y_field: false # very strong correlations
   - key: FLS
     name: Flow Limitation Score
-    y_field: false # disable - strongly correlated with other metrics
+    y_field: false # very strong correlations
   - key: GI
     name: Glasgow Index Overall
-    plot: true
     y_field: true
+    plot: true
   - key: GI Sk
     name: Glasgow Index Skew
-    y_field: true
+    y_field: false # very strong correlations
   - key: GI TH
     name: Glasgow Index Top Heavy
-    y_field: true
+    y_field: false # very strong correlations
   - key: GI VA
     name: Glasgow Index Var Amp
-    y_field: true
+    y_field: false # very strong correlations
   - key: NED RDI
-    plot: true
-    y_field: true
+    y_field: false # very strong correlation with BOI
   - key: BOI
     name: Brief Obstruction Index
-    plot: true
     y_field: true
+    plot: true
   - key: AHI
-    y_field: false # disable
+    y_field: false # disable most device metrics
   - key: RERA
-    y_field: false # disable
+    y_field: false # disable most device metrics
   - key: RDI
-    y_field: true # disable
+    y_field: false # disable most device metrics
   - key: CAI
     y_field: true
   - key: 95%FL
     name: 95% Flow Limitation
-    y_field: true
+    y_field: false # disable most device metrics
   - key: AvgLR
     name: Average Leak Rate
     y_field: true
