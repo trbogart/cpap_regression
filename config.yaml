@@ -1,6 +1,6 @@
 data_file: cpap.csv # CSV file
 stats:
-  enabled: true # false to disable all stats and log file
+  enabled: false # false to disable all stats and log file
   save_logs: false # save logs (unless stats are disabled)
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
@@ -18,11 +18,6 @@ next_pressure:
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 1.2 # optional sigma used to randomly adjust counts
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-    # TODO temporarily fill in every other bucket first
-    # TODO remove when 8.2/8.6/9.0 all 4+
-    8.2: 10
-    8.6: 8
-    9.0: 6
   center_weight: 5 # multiplier applied to distance from pressure that will center mean
   verbose: true
 weighted_by:

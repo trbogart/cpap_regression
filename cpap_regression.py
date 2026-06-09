@@ -207,8 +207,7 @@ class Regression:
         self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
                                                      int(round(self.max_pressure * 5)) + 1)]
 
-        # noinspection PyTypeChecker
-        self.center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
+        self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
@@ -359,8 +358,8 @@ class Regression:
             else:
                 pressure_boost = 0
 
-            if self.config['next_pressure']['pressure_boosts'] and pressure in self.config['next_pressure']['pressure_boosts']:
-                pressure_boost += self.config['next_pressure']['pressure_boosts'][pressure]
+            if self.config['next_pressure']['pressure_boosts']:
+                pressure_boost += self.config['next_pressure']['pressure_boosts'].get(pressure, 0)
 
             if self.config['next_pressure']['center_weight']:
                 center_distance = round(abs(pressure - target_pressure) * self.config['next_pressure']['center_weight'],
@@ -374,9 +373,13 @@ class Regression:
                 random_adjustment = 0
 
             score = pressure_weight + random_adjustment + center_distance - pressure_boost
+            if self.config['weighted_by']['usage']:
+                weight_str = f'{pressure_weight:5.2f} weight'
+            else:
+                weight_str = f'{pressure_weight:2d} count'
             if self.config['next_pressure']['verbose']:
                 self._log(f'- {pressure:3.1f}: {score:5.2f}'
-                          f' = {pressure_weight:2.2g} {random_adjustment:+.2f} random {center_distance:+g} center {-pressure_boost:+g} boost')
+                          f' = {weight_str} {random_adjustment:+.2f} random {center_distance:+g} center {-pressure_boost:+g} boost')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
