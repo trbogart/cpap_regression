@@ -207,32 +207,6 @@ class Regression:
         self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
                                                      int(round(self.max_pressure * 5)) + 1)]
 
-        self.pressure_bucket_map = {}
-        if self.config['stats']['bucket'] and len(self.valid_pressures) > 3:
-            # combine adjacent buckets (except for central bucket if odd)
-            # min and max pressures are preserved
-            center_bucket = len(self.valid_pressures) // 2
-            i = 0
-            new_valid_pressures = []
-            while i < len(self.valid_pressures):
-                if i < center_bucket:
-                    # replace next pressure with this pressure
-                    self.pressure_bucket_map[self.valid_pressures[i+1]] = self.valid_pressures[i]
-                    new_valid_pressures.append(self.valid_pressures[i])
-                    i += 2
-                elif i == center_bucket and len(self.valid_pressures) % 2 == 1:
-                    # do nothing for center bucket (will not be consolidated)
-                    new_valid_pressures.append(self.valid_pressures[i])
-                    i += 1
-                else:
-                    # replace this pressure with next pressure
-                    new_valid_pressures.append(self.valid_pressures[i+1])
-                    self.pressure_bucket_map[self.valid_pressures[i]] = self.valid_pressures[i+1]
-                    i += 2
-
-            self.df['Pressure'] = self.df['Pressure'].replace(self.pressure_bucket_map)
-            self.valid_pressures = new_valid_pressures
-
         # noinspection PyTypeChecker
         self.center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
 

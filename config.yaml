@@ -2,7 +2,6 @@ data_file: cpap.csv # CSV file
 stats:
   enabled: true # false to disable all stats and log file
   save_logs: false # save logs (unless stats are disabled)
-  bucket: false # true to bucket adjacent pressures (works best with an odd number of pressures)
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
