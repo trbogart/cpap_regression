@@ -3,11 +3,11 @@ stats:
   enabled: false # false to disable all stats and log file
   save_logs: true # save logs (unless stats are disabled)
 filter:
-  max_days: 91 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure:  # optional min Pressure
-  max_pressure:  # optional max Pressure
+  min_pressure: 7.0 # optional min Pressure
+  max_pressure: 8.0 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
