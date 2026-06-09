@@ -397,6 +397,9 @@ class Regression:
                 else:
                     pressure_boost = 0
 
+            if self.config['next_pressure']['pressure_boosts'] and pressure in self.config['next_pressure']['pressure_boosts']:
+                pressure_boost += self.config['next_pressure']['pressure_boosts'][pressure]
+
             if self.config['next_pressure']['center_weight']:
                 center_distance = round(abs(pressure - target_pressure) * self.config['next_pressure']['center_weight'],
                                         1)

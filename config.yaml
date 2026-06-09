@@ -2,13 +2,13 @@ data_file: cpap.csv # CSV file
 stats:
   enabled: true # false to disable all stats and log file
   save_logs: false # save logs (unless stats are disabled)
-  bucket: true # true to bucket adjacent pressures (works best with an odd number of pressures)
+  bucket: false # true to bucket adjacent pressures (works best with an odd number of pressures)
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.4 # optional min Pressure
-  max_pressure: 9.0 # optional max Pressure
+  max_pressure:  # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
@@ -16,9 +16,16 @@ filter:
   verbose: false # print details for configuration-based filtering
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 3 # optional boost for last pressure (reduces adjusts count)
+  last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 1.2 # optional sigma used to randomly adjust counts
   excluded_pressures: [] # list of pressures that are never recommended
+  pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
+    # TODO temporarily fill in every other bucket first
+    7.4: 3
+    7.8: 3
+    8.2: 3
+    8.6: 3
+    9.0: 3
   center_weight: 5 # multiplier applied to distance from pressure that will center mean
   verbose: true
 weighted_by:
