@@ -314,14 +314,14 @@ class Regression:
         df = self.df_tomorrow
 
         if self.config['weighted_by']['usage']:
-            # weight by usage (same scale as row count)
+            # weight by usage (same scale as pressure count)
             avg_usage = df['Usage'].mean()
             pressure_weights = {
                 pressure: df[df['Pressure'] == pressure]['Usage'].sum() / avg_usage for pressure in
                 self.valid_pressures
             }
         else:
-            # weight by row count
+            # weight by pressure count
             pressure_weights = df['Pressure'].value_counts()
 
         extreme_pressures = {self.min_pressure, self.max_pressure}
