@@ -116,9 +116,9 @@ class Regression:
         self._log(f'{count} rows between {date_string} ({self.num_days} days)')
 
         if filter_config['min_date'] and pd.to_datetime(filter_config['min_date']) != self.min_date_time:
-            self._log("Config 'min_date' not used")
+            self._log("Config 'min_date' can be edited")
         if filter_config['max_date'] and pd.to_datetime(filter_config['max_date']) != self.max_date_time:
-            self._log("Config 'max_date' not used")
+            self._log("Config 'max_date' can be edited")
 
         if count < self.num_days:
             missing = self.num_days - count
@@ -323,7 +323,7 @@ class Regression:
                     self._log(line)
         elif num_removed == 0 and field_name == 'Pressure':
             # only display this for controllable fields
-            self._log(f"Config '{config_key}' not used")
+            self._log(f"Config '{config_key}' can be edited")
 
         self.df = filtered_df
         return new_dates
