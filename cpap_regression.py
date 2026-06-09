@@ -631,7 +631,6 @@ class Regression:
                     next_pressure = pressure
                     best_score = score
 
-            # noinspection PyUnresolvedReferences
             tomorrow = (self.max_date_time + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
             if next_pressure < self.last_pressure:
                 self._log(f'Decrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
