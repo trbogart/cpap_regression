@@ -496,7 +496,8 @@ class Regression:
             s.append('usage')
         return '_'.join(s)
 
-    def _weighted_correlation(self, x, y, weights) -> float:
+    @staticmethod
+    def _weighted_correlation(x, y, weights) -> float:
         """Calculates the weighted Pearson correlation coefficient."""
         # Compute weighted means
         mean_x = np.average(x, weights=weights)
@@ -565,6 +566,7 @@ class Regression:
             #     - base weight is count (or total usage scaled to 1.0/night average if weighted by usage)
             #     - subtract last_pressure_boost for most recent pressure
             #     - add random Gaussian number with random_sigma
+            #     - add distance from pressure that would center pressure multiplied by center_weight
 
             if self.config['weighted_by']['usage']:
                 # weight by usage (same scale as row count)
@@ -597,6 +599,9 @@ class Regression:
                 next_pressure = dropped_pressure
                 best_score = float('-inf')
 
+            # pressure that will make mean pressure equal to center pressure
+            target_pressure = center_pressure * (len(df) + 1) - df['Pressure'].sum()
+
             if self.config['next_pressure']['verbose']:
                 self._log(f'Scores:')
             for pressure in self.valid_pressures:
@@ -618,15 +623,20 @@ class Regression:
                     else:
                         pressure_boost = 0
 
+                if self.config['next_pressure']['center_weight']:
+                    center_distance = round(abs(pressure - target_pressure) * self.config['next_pressure']['center_weight'], 1)
+                else:
+                    center_distance = 0
+
                 if self.config['next_pressure']['random_sigma']:
                     random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
                 else:
                     random_adjustment = 0
 
-                score = pressure_weight + random_adjustment - pressure_boost
+                score = pressure_weight + random_adjustment + center_distance - pressure_boost
                 if self.config['next_pressure']['verbose']:
                     self._log(f'- {pressure:3.1f}: {score:5.2f}'
-                              f' = {pressure_weight:2.2g} {random_adjustment:+.2f} random {-pressure_boost:+g} boost')
+                              f' = {pressure_weight:2.2g} {random_adjustment:+.2f} random {center_distance:+g} center {-pressure_boost:+g} boost')
                 if score < best_score:
                     next_pressure = pressure
                     best_score = score
