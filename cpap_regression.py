@@ -328,16 +328,11 @@ class Regression:
         extreme_pressures = {self.min_pressure, self.max_pressure}
 
         def is_zero_extreme(pr: float) -> bool:
-            return pr in extreme_pressures and pr not in excluded_pressures and pressure_weights.get(pr, 0) == 0
-
-        excluded_pressures = {
-            pr: pressure_weights.get(pr, 0) for pr in self.config['next_pressure']['excluded_pressures']
-        }
+            return pr in extreme_pressures and pressure_weights.get(pr, 0) == 0
 
         # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
         # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
         next_pressure = best_score = float('inf')
-        max_non_excluded_weight = 0
         if is_zero_extreme(self.last_pressure):
             next_pressure = self.last_pressure
             best_score = float('-inf')
@@ -355,21 +350,14 @@ class Regression:
         for pressure in self.valid_pressures:
             pressure_weight = pressure_weights.get(pressure, 0)
 
-            if pressure in excluded_pressures:
-                # never select excluded pressure
-                pressure_boost = float('-inf')
+            if pressure_weight == 0 and pressure in extreme_pressures:
+                # always select extreme pressure with zero count
+                pressure_boost = float('inf')
+            elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
+                # otherwise prefer most recent pressure
+                pressure_boost = self.config['next_pressure']['last_pressure_boost']
             else:
-                if pressure_weight > max_non_excluded_weight:
-                    max_non_excluded_weight = pressure_weight
-
-                if pressure_weight == 0 and pressure in extreme_pressures:
-                    # always select extreme pressure with zero count
-                    pressure_boost = float('inf')
-                elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
-                    # otherwise prefer most recent pressure
-                    pressure_boost = self.config['next_pressure']['last_pressure_boost']
-                else:
-                    pressure_boost = 0
+                pressure_boost = 0
 
             if self.config['next_pressure']['pressure_boosts'] and pressure in self.config['next_pressure']['pressure_boosts']:
                 pressure_boost += self.config['next_pressure']['pressure_boosts'][pressure]
@@ -401,10 +389,6 @@ class Regression:
             self._log(f'\nIncrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
         else:
             self._log(f'\nLeave Pressure at {next_pressure:.1f} for {tomorrow}')
-
-        for pressure, weight in excluded_pressures.items():
-            if max_non_excluded_weight >= weight:
-                self._log(f'Excluded Pressure {pressure:.1f} is not most frequent, consider updating config')
 
     def _print_dropped(self, old_count: int, description: str) -> int:
         new_count = len(self.df)
