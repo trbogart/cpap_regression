@@ -176,7 +176,6 @@ class Regression:
             self._log('All data filtered')
             sys.exit(1)
 
-        self.pressure = self.df['Pressure']
         if filter_config['min_pressure']:
             self.min_pressure: float = filter_config['min_pressure']
             if not self._is_pressure_valid(self.min_pressure):
@@ -189,7 +188,7 @@ class Regression:
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
-            self.min_pressure: float = min(self.last_pressure, self.pressure.min())
+            self.min_pressure: float = min(self.last_pressure, self.df['Pressure'].min())
         if filter_config['max_pressure']:
             self.max_pressure: float = filter_config['max_pressure']
             if not self._is_pressure_valid(self.max_pressure):
@@ -203,10 +202,39 @@ class Regression:
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
-            self.max_pressure: float = max(self.last_pressure, self.pressure.max())
+            self.max_pressure: float = max(self.last_pressure, self.df['Pressure'].max())
 
         self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
                                                      int(round(self.max_pressure * 5)) + 1)]
+
+        self.pressure_bucket_map = {}
+        if self.config['stats']['bucket'] and len(self.valid_pressures) > 3:
+            # combine adjacent buckets (except for central bucket if odd)
+            # min and max pressures are preserved
+            center_bucket = len(self.valid_pressures) // 2
+            i = 0
+            new_valid_pressures = []
+            while i < len(self.valid_pressures):
+                if i < center_bucket:
+                    # replace next pressure with this pressure
+                    self.pressure_bucket_map[self.valid_pressures[i+1]] = self.valid_pressures[i]
+                    new_valid_pressures.append(self.valid_pressures[i])
+                    i += 2
+                elif i == center_bucket and len(self.valid_pressures) % 2 == 1:
+                    # do nothing for center bucket (will not be consolidated)
+                    new_valid_pressures.append(self.valid_pressures[i])
+                    i += 1
+                else:
+                    # replace this pressure with next pressure
+                    new_valid_pressures.append(self.valid_pressures[i+1])
+                    self.pressure_bucket_map[self.valid_pressures[i]] = self.valid_pressures[i+1]
+                    i += 2
+
+            self.df['Pressure'] = self.df['Pressure'].replace(self.pressure_bucket_map)
+            self.valid_pressures = new_valid_pressures
+
+        # noinspection PyTypeChecker
+        self.center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
         # adjust weights based on config
@@ -215,11 +243,8 @@ class Regression:
         self.df['WeightIgnoringFrequency'] = self.df['Weight']
 
         if self.config['weighted_by']['frequency']:
-            pressure_counts = self.pressure.value_counts()
-            self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.pressure]
-
-        # noinspection PyTypeChecker
-        self.center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
+            pressure_counts = self.df['Pressure'].value_counts()
+            self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.df['Pressure']]
 
         self.dropped_date: DatetimeIndex | None = None
         self.dropped_pressure: float | None = None
@@ -240,7 +265,7 @@ class Regression:
         self._log('Pressure Counts:')
 
         for pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.pressure == pressure]
+            data_for_pressure = self.df[self.df['Pressure'] == pressure]
             dates = data_for_pressure['Date']
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
