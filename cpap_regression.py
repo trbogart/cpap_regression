@@ -218,11 +218,54 @@ class Regression:
             pressure_counts = self.pressure.value_counts()
             self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.pressure]
 
+        # noinspection PyTypeChecker
+        self.center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
+
+        self.dropped_date: DatetimeIndex | None = None
+        self.dropped_pressure: float | None = None
+        self.df_tomorrow = self.df
+        if self.config['filter']['max_days'] and self.num_days == self.config['filter']['max_days']:
+            # at maximum number of days, but first day may be missing or invalid
+            # note: can't just check self.min_date_time first because it can also be set by min_date config
+            if self.df.at[self.df.index[0], 'DateTime'] == self.min_date_time:
+                # noinspection PyTypeChecker
+                self.dropped_pressure = self.df.at[self.df.index[0], 'Pressure']
+                # noinspection PyTypeChecker
+                self.dropped_date: str = self.df.at[self.df.index[0], 'Date']
+                self.df_tomorrow = self.df.iloc[1:]
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
         self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
-        self._pressure_counts()
+        self._log('Pressure Counts:')
+
+        for pressure in self.valid_pressures:
+            data_for_pressure = self.df[self.pressure == pressure]
+            dates = data_for_pressure['Date']
+            total_usage = data_for_pressure['Usage'].sum()
+            total_weight = data_for_pressure['Weight'].sum()
+            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
+                      f'{total_weight:.2g} total weight): {', '.join(dates)}')
+
+        avg_pressure = self.df['Pressure'].mean()
+
+        pressure_date_correlation = self._weighted_correlation(self.df['Pressure'], self.df['Timestamp'],
+                                                               self.df['WeightIgnoringFrequency'])
+        self._log(f'\nMean Pressure: {self._mean_pressure_string(avg_pressure)}')
+        self._log(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+
+        if self.dropped_pressure is not None:
+            new_avg_pressure = self.df_tomorrow['Pressure'].mean()
+            new_pressure_date_correlation = self._weighted_correlation(self.df_tomorrow['Pressure'],
+                                                                       self.df_tomorrow['Timestamp'],
+                                                                       self.df_tomorrow['WeightIgnoringFrequency'])
+
+            # noinspection PyStringConversionWithoutDunderMethod
+            self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
+            self._log(f'  New mean Pressure: {self._mean_pressure_string(new_avg_pressure)}')
+            self._log(f'  New correlation between Pressure and Date: {new_pressure_date_correlation:.2f}')
+        else:
+            self._log('Will not drop a row tomorrow')
 
         if len(self.df) < 2:
             self._log('Minimum N=2')
@@ -244,6 +287,122 @@ class Regression:
 
             if self.config['ard']['enabled']:
                 self._ard()
+
+        if self.config['next_pressure']['enabled']:
+            self._next_pressure()
+
+    def _mean_pressure_string(self, avg_pressure: float) -> str:
+        center_diff = avg_pressure - self.center_pressure
+        if center_diff >= 0:
+            suffix = f' ({center_diff :.3f} above center: {self.center_pressure:.1f})'
+        else:
+            suffix = f' ({-center_diff:.3f} below center: {self.center_pressure:.1f})'
+
+        return f'{avg_pressure:.3f}{suffix}'
+
+    def _next_pressure(self):
+        # calculate next pressure
+        # priority is:
+        # 1 - last pressure if either min or max and count is 0 (implying data was invalid, to avoid pressure "falling off")
+        # 2 - dropped pressure if either min or max and new count will be 0 (to avoid pressure "falling off")
+        # 3 - min pressure if count is 0 (will be able to remove min_pressure config)
+        # 4 - max pressure if count is 0 (will be able to remove max_pressure config)
+        # 5 - select lowest adjusted weight
+        #     - base weight is count (or total usage scaled to 1.0/night average if weighted by usage)
+        #     - subtract last_pressure_boost for most recent pressure
+        #     - add random Gaussian number with random_sigma
+        #     - add distance from pressure that would center pressure multiplied by center_weight
+
+        df = self.df_tomorrow
+
+        if self.config['weighted_by']['usage']:
+            # weight by usage (same scale as row count)
+            avg_usage = df['Usage'].mean()
+            pressure_weights = {
+                pressure: df[df['Pressure'] == pressure]['Usage'].sum() / avg_usage for pressure in
+                self.valid_pressures
+            }
+        else:
+            # weight by row count
+            pressure_weights = df['Pressure'].value_counts()
+
+        extreme_pressures = {self.min_pressure, self.max_pressure}
+
+        def is_zero_extreme(pr: float) -> bool:
+            return pr in extreme_pressures and pr not in excluded_pressures and pressure_weights.get(pr, 0) == 0
+
+        excluded_pressures = {
+            pr: pressure_weights.get(pr, 0) for pr in self.config['next_pressure']['excluded_pressures']
+        }
+
+        # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
+        # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
+        next_pressure = best_score = float('inf')
+        max_non_excluded_weight = 0
+        if is_zero_extreme(self.last_pressure):
+            next_pressure = self.last_pressure
+            best_score = float('-inf')
+        elif self.dropped_pressure is not None and is_zero_extreme(self.dropped_pressure):
+            next_pressure = self.dropped_pressure
+            best_score = float('-inf')
+
+        # pressure that will make mean pressure equal to center pressure
+        target_pressure = round(self.center_pressure * (len(df) + 1) - df['Pressure'].sum(), 1)
+
+        if self.config['next_pressure']['verbose']:
+            self._log(
+                f'\nPressure that would move mean Pressure to center ({self.center_pressure:.1f}): {target_pressure:.1f}')
+            self._log(f'Next Pressure Scores:')
+        for pressure in self.valid_pressures:
+            pressure_weight = pressure_weights.get(pressure, 0)
+
+            if pressure in excluded_pressures:
+                # never select excluded pressure
+                pressure_boost = float('-inf')
+            else:
+                if pressure_weight > max_non_excluded_weight:
+                    max_non_excluded_weight = pressure_weight
+
+                if pressure_weight == 0 and pressure in extreme_pressures:
+                    # always select extreme pressure with zero count
+                    pressure_boost = float('inf')
+                elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
+                    # otherwise prefer most recent pressure
+                    pressure_boost = self.config['next_pressure']['last_pressure_boost']
+                else:
+                    pressure_boost = 0
+
+            if self.config['next_pressure']['center_weight']:
+                center_distance = round(abs(pressure - target_pressure) * self.config['next_pressure']['center_weight'],
+                                        1)
+            else:
+                center_distance = 0
+
+            if self.config['next_pressure']['random_sigma']:
+                random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
+            else:
+                random_adjustment = 0
+
+            score = pressure_weight + random_adjustment + center_distance - pressure_boost
+            if self.config['next_pressure']['verbose']:
+                self._log(f'- {pressure:3.1f}: {score:5.2f}'
+                          f' = {pressure_weight:2.2g} {random_adjustment:+.2f} random {center_distance:+g} center {-pressure_boost:+g} boost')
+            if score < best_score:
+                next_pressure = pressure
+                best_score = score
+
+        # noinspection PyTypeChecker,PyUnresolvedReferences
+        tomorrow = (self.max_date_time + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+        if next_pressure < self.last_pressure:
+            self._log(f'\nDecrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
+        elif next_pressure > self.last_pressure:
+            self._log(f'\nIncrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
+        else:
+            self._log(f'\nLeave Pressure at {next_pressure:.1f} for {tomorrow}')
+
+        for pressure, weight in excluded_pressures.items():
+            if max_non_excluded_weight >= weight:
+                self._log(f'Excluded Pressure {pressure:.1f} is not most frequent, consider updating config')
 
     def _print_dropped(self, old_count: int, description: str) -> int:
         new_count = len(self.df)
@@ -364,7 +523,7 @@ class Regression:
         if num_correlations:
             s.append(f'Top {num_correlations} correlations')
         else:
-            s.append('All correlations')
+            s.append('Correlations')
         if field:
             s.append(f'for {field.name}')
         else:
@@ -510,149 +669,6 @@ class Regression:
 
         # Compute correlation
         return cov_xy / np.sqrt(cov_xx * cov_yy)
-
-    # noinspection PyTypeChecker
-    def _pressure_counts(self):
-        self._log('Pressure Counts:')
-
-        for pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.pressure == pressure]
-            dates = data_for_pressure['Date']
-            total_usage = data_for_pressure['Usage'].sum()
-            total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2g} total weight): {', '.join(dates)}')
-
-        df = self.df
-        avg_pressure = df['Pressure'].mean()
-        center_pressure: float = np.mean([self.min_pressure, self.max_pressure])
-
-        def mean_pressure() -> str:
-            center_diff = avg_pressure - center_pressure
-            if center_diff >= 0:
-                suffix = f' ({center_diff :.3f} above center: {center_pressure:.1f})'
-            else:
-                suffix = f' ({-center_diff:.3f} below center: {center_pressure:.1f})'
-
-            return f'{avg_pressure:.3f}{suffix}'
-
-        pressure_date_correlation = self._weighted_correlation(df['Pressure'], df['Timestamp'], df['WeightIgnoringFrequency'])
-        self._log(f'Mean Pressure: {mean_pressure()}')
-        self._log(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
-        dropped_pressure: float | None = None
-        if self.config['filter']['max_days'] and self.num_days == self.config['filter']['max_days']:
-            # at maximum number of days, but first day may be missing or invalid
-            # note: can't just check self.min_date_time first because it can also be set by min_date config
-            if df.at[df.index[0], 'DateTime'] == self.min_date_time:
-                dropped_pressure = df.at[df.index[0], 'Pressure']
-                dropped_date: str = df.at[df.index[0], 'Date']
-                df = df.iloc[1:]
-                avg_pressure = df['Pressure'].mean()
-                pressure_date_correlation = self._weighted_correlation(df['Pressure'], df['Timestamp'],
-                                                                       df['WeightIgnoringFrequency'])
-                self._log(f'Will drop {dropped_date} (Pressure {dropped_pressure:.1f}) tomorrow')
-                self._log(f'  New mean Pressure: {mean_pressure()}')
-                self._log(f'  New correlation between Pressure and Date: {pressure_date_correlation:.2f}')
-
-
-        if self.config['next_pressure']['enabled']:
-            # calculate next pressure
-            # priority is:
-            # 1 - last pressure if either min or max and count is 0 (implying data was invalid, to avoid pressure "falling off")
-            # 2 - dropped pressure if either min or max and new count will be 0 (to avoid pressure "falling off")
-            # 3 - min pressure if count is 0 (will be able to remove min_pressure config)
-            # 4 - max pressure if count is 0 (will be able to remove max_pressure config)
-            # 5 - select lowest adjusted weight
-            #     - base weight is count (or total usage scaled to 1.0/night average if weighted by usage)
-            #     - subtract last_pressure_boost for most recent pressure
-            #     - add random Gaussian number with random_sigma
-            #     - add distance from pressure that would center pressure multiplied by center_weight
-
-            if self.config['weighted_by']['usage']:
-                # weight by usage (same scale as row count)
-                avg_usage = df['Usage'].mean()
-                pressure_weights = {
-                    pressure: df[df['Pressure'] == pressure]['Usage'].sum() / avg_usage for pressure in
-                    self.valid_pressures
-                }
-            else:
-                # weight by row count
-                pressure_weights = df['Pressure'].value_counts()
-
-            extreme_pressures = {self.min_pressure, self.max_pressure}
-
-            def is_zero_extreme(pr: float) -> bool:
-                return pr in extreme_pressures and pr not in excluded_pressures and pressure_weights.get(pr, 0) == 0
-
-            excluded_pressures = {
-                pr: pressure_weights.get(pr, 0) for pr in self.config['next_pressure']['excluded_pressures']
-            }
-
-            # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
-            # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
-            next_pressure = best_score = float('inf')
-            max_non_excluded_weight = 0
-            if is_zero_extreme(self.last_pressure):
-                next_pressure = self.last_pressure
-                best_score = float('-inf')
-            elif dropped_pressure is not None and is_zero_extreme(dropped_pressure):
-                next_pressure = dropped_pressure
-                best_score = float('-inf')
-
-            # pressure that will make mean pressure equal to center pressure
-            target_pressure = center_pressure * (len(df) + 1) - df['Pressure'].sum()
-
-            if self.config['next_pressure']['verbose']:
-                self._log(f'Scores:')
-            for pressure in self.valid_pressures:
-                pressure_weight = pressure_weights.get(pressure, 0)
-
-                if pressure in excluded_pressures:
-                    # never select excluded pressure
-                    pressure_boost = float('-inf')
-                else:
-                    if pressure_weight > max_non_excluded_weight:
-                        max_non_excluded_weight = pressure_weight
-
-                    if pressure_weight == 0 and pressure in extreme_pressures:
-                        # always select extreme pressure with zero count
-                        pressure_boost = float('inf')
-                    elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
-                        # otherwise prefer most recent pressure
-                        pressure_boost = self.config['next_pressure']['last_pressure_boost']
-                    else:
-                        pressure_boost = 0
-
-                if self.config['next_pressure']['center_weight']:
-                    center_distance = round(abs(pressure - target_pressure) * self.config['next_pressure']['center_weight'], 1)
-                else:
-                    center_distance = 0
-
-                if self.config['next_pressure']['random_sigma']:
-                    random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
-                else:
-                    random_adjustment = 0
-
-                score = pressure_weight + random_adjustment + center_distance - pressure_boost
-                if self.config['next_pressure']['verbose']:
-                    self._log(f'- {pressure:3.1f}: {score:5.2f}'
-                              f' = {pressure_weight:2.2g} {random_adjustment:+.2f} random {center_distance:+g} center {-pressure_boost:+g} boost')
-                if score < best_score:
-                    next_pressure = pressure
-                    best_score = score
-
-            tomorrow = (self.max_date_time + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-            if next_pressure < self.last_pressure:
-                self._log(f'Decrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
-            elif next_pressure > self.last_pressure:
-                self._log(f'Increase Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
-            else:
-                self._log(f'Leave Pressure at {next_pressure:.1f} for {tomorrow}')
-
-            for pressure, weight in excluded_pressures.items():
-                if max_non_excluded_weight >= weight:
-                    self._log(f'Excluded Pressure {pressure:.1f} is not most frequent, consider updating config')
-
 
 
 if __name__ == '__main__':
