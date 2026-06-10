@@ -6,12 +6,13 @@ filter:
   max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure: 7.2 # optional min Pressure
+  min_pressure:  # optional min Pressure
   max_pressure: 7.4 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
-  min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
+  min_sleep_efficiency: 0.7 # optional min ratio between Sleep and Usage
+  collar:  # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
 pressure_counts:
   enabled: false
@@ -142,6 +143,10 @@ fields:
   - key: Pressure
     x_field: false
     multi_x_field: false
+  - key: Collar
+    plot: true
+    x_field: true
+    multi_x_field: true
   - key: Usage
   - key: Sleep
   - key: REM

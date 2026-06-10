@@ -64,6 +64,8 @@ class Regression:
             columns.add('Usage')
         if 'min_sleep' in filter_config:
             columns.add('Sleep')
+        if 'collar' in filter_config:
+            columns.add('Collar')
         calculate_efficiency = 'min_sleep_efficiency' in filter_config
         calculate_rdi = False
         calculate_ned_mean_split = False
@@ -128,6 +130,10 @@ class Regression:
         # Weight field is 1 by default (mostly intended for manual exclusion, but non-zero weights also work)
         self.df['Weight'] = self.df['Weight'].fillna(1)
 
+        # Collar field is 0 by default
+        if 'Collar' in columns:
+            self.df['Collar'] = self.df['Collar'].fillna(0)
+
         # drop invalid data (including 0 weight, which is possible with manual weighting)
         self.df.drop(self.df[self.df['Weight'] == 0].index, inplace=True)
         self.df.dropna(inplace=True)
@@ -168,6 +174,7 @@ class Regression:
         dates = self._filter_config(dates, 'Usage', 'min_usage')
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
+        dates = self._filter_config(dates, 'Collar', 'collar')
         if not self.config['filter']['verbose'] and len(dates) < count:
             self._print_dropped(count, 'for configured filters')
         if len(self.df) == 0:
@@ -470,7 +477,7 @@ class Regression:
         elif config_key.startswith('max_'):
             filtered_df = self.df[self.df[field_name] <= threshold]
         else:
-            raise ValueError(f'Invalid config name: {config_key}')
+            filtered_df = self.df[self.df[field_name] == threshold]
 
         new_dates = set(filtered_df['Date'])
         removed_dates = dates - new_dates
@@ -519,13 +526,16 @@ class Regression:
     def _linear(self):
         config = self.config['linear']
         for x_field in self.x_fields:
-            correlations = [
-                (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
-            num_correlations = config['num_correlations']
-            min_correlation = config['min_correlation']
-            self._print_correlation_summary(field=x_field, num_correlations=num_correlations,
-                                            min_correlation=min_correlation)
-            self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
+            if len(self.df[x_field.key].unique()) < 2:
+                self._log(f'\nSkip correlations for {x_field.name}, only 1 value')
+            else:
+                correlations = [
+                    (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
+                num_correlations = config['num_correlations']
+                min_correlation = config['min_correlation']
+                self._print_correlation_summary(field=x_field, num_correlations=num_correlations,
+                                                min_correlation=min_correlation)
+                self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
 
     def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None,
                                    min_correlation: float | None = None):
@@ -547,12 +557,12 @@ class Regression:
         config = self.config['weighted_by']
         if config['frequency']:
             if config['usage']:
-                return 'weighted by inverse frequency and usage'
-            return 'weighted by inverse frequency'
+                return 'Weighted by inverse frequency and usage'
+            return 'Weighted by inverse frequency'
         if config['usage']:
-            return 'weighted by usage'
+            return 'Weighted by usage'
         if include_unweighted:
-            return 'not weighted'
+            return 'Not weighted'
         return None
 
     def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
@@ -596,14 +606,15 @@ class Regression:
                 plt.plot(polyline, poly2(polyline), color='red')
 
             weighted_by = self._weighted_by(include_unweighted=False)
-            title = f'{y_field.title} vs. {x_field.title}'
+            title_lines = [f'{y_field.title} vs. {x_field.title}']
             if weighted_by:
-                title += f' - {weighted_by}'
+                title_lines.append(weighted_by)
+            title_lines.append(f'r = {correl:.3f}')
 
             plt.scatter(x, y)
-            plt.xlabel(f'{y_field.name} vs. {x_field.name} (r = {correl:.3f})')
+            plt.xlabel(f'{x_field.name}')
             plt.ylabel(y_field.name)
-            plt.title(title)
+            plt.title('\n'.join(title_lines))
             plt.tight_layout()
             if config['save_plots']:
                 plt.savefig(self._plot_filename(y_field, x_field), bbox_inches='tight')
