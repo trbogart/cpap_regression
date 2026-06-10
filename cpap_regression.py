@@ -40,8 +40,6 @@ class Field:
         y_field = field_config['y_field'] if 'y_field' in field_config else False
         x_field = field_config['x_field'] if 'x_field' in field_config else False
         multi_x_field = field_config['multi_x_field'] if 'multi_x_field' in field_config else False
-        if x_field and y_field:
-            raise ValueError(f'Field {key} enabled for both x and y field')
         return cls(key, name, title, plot, y_field, x_field, multi_x_field)
 
 
@@ -183,8 +181,9 @@ class Regression:
                 sys.exit(1)
             if self.last_pressure < self.min_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
-                self._log(f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' "
-                          f"({self.min_pressure:.1f}), using {last_valid_pressure:.1f} instead")
+                if self.config['next_pressure']['enabled']:
+                    self._log(f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' "
+                              f"({self.min_pressure:.1f}), using {last_valid_pressure:.1f} instead")
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
@@ -196,9 +195,10 @@ class Regression:
                 sys.exit(1)
             if self.last_pressure > self.max_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
-                self._log(
-                    f"Last pressure ({self.last_pressure:.1f}) above 'max_pressure' "
-                    f"({self.max_pressure:.1f}), using {last_valid_pressure:.1f} instead")
+                if self.config['next_pressure']['enabled']:
+                    self._log(
+                        f"Last pressure ({self.last_pressure:.1f}) above 'max_pressure' "
+                        f"({self.max_pressure:.1f}), using {last_valid_pressure:.1f} instead")
                 self.last_pressure = last_valid_pressure
         else:
             # noinspection PyTypeChecker
@@ -238,6 +238,15 @@ class Regression:
 
         if self.config['pressure_counts']['enabled']:
             self._pressure_counts()
+        else:
+            # noinspection PyStringConversionWithoutDunderMethod
+            date_string = f'{self.df.at[self.df.index[0], 'Date']} and {self.df.at[self.df.index[-1], 'Date']}'
+            self._log(f'Valid data between {date_string}')
+            if self.dropped_pressure is not None:
+                # noinspection PyStringConversionWithoutDunderMethod
+                self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
+            else:
+                self._log('Will not drop a row tomorrow')
 
         if len(self.df) < 2:
             self._log('Minimum N=2')
@@ -274,20 +283,23 @@ class Regression:
                 dates_str = list(dates)[:half]
                 dates_str.append('...')
                 dates_str.extend(dates[-half:])
-                dates = dates_str
+            else:
+                dates_str = dates
 
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
             self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2g} total weight): {', '.join(dates)}\n')
+                      f'{total_weight:.2g} total weight): {', '.join(dates_str)}')
 
         def print_summary(df, prefix: str = ''):
             avg_pressure = df['Pressure'].mean()
-            pressure_date_correlation = self._weighted_correlation(df['Pressure'],
-                                                                   df['Timestamp'],
-                                                                   df['WeightIgnoringFrequency'])
             self._log(f'{prefix}Mean Pressure: {self._mean_pressure_string(avg_pressure)}')
-            self._log(f'{prefix}Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+
+            if self.config['pressure_counts']['pressure_date_correlation']:
+                correl = self._weighted_correlation(df['Pressure'],
+                                                    df['Timestamp'],
+                                                    df['WeightIgnoringFrequency'])
+                self._log(f'{prefix}Correlation between Pressure and Date: {correl:.2f}')
 
         print_summary(self.df)
 

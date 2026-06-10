@@ -3,19 +3,20 @@ stats:
   enabled: true # false to disable all stats and log file
   save_logs: true # save logs (unless stats are disabled)
 filter:
-  max_days: 41 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure:  # optional min Pressure
-  max_pressure: 7.6 # optional max Pressure
+  min_pressure: 7.2 # optional min Pressure
+  max_pressure: 7.4 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
 pressure_counts:
-  enabled: true
+  enabled: false
   max_dates: 5
+  pressure_date_correlation: false
 next_pressure:
   enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
@@ -97,11 +98,11 @@ fields:
   - key: NED Mean
     y_field: true
   - key: H1 NED Mean
-    y_field: true
+    y_field: false
   - key: H2 NED Mean
-    y_field: true
+    y_field: false
   - key: NED Mean Split # calculated: abs(H2 NED Mean - H1 NED Mean)
-    y_field: true
+    y_field: false
   - key: NED RDI
     y_field: true
     plot: true
@@ -121,6 +122,7 @@ fields:
     name: 95% Flow Limitation
   - key: AvgLR
     name: Average Leak Rate
+    x_field: true
     y_field: true
     multi_x_field: true
   - key: IFL
@@ -132,17 +134,18 @@ fields:
   - key: Regul
     name: Regularity
     y_field: true
-  - key: Pressure
-    multi_x_field: false
-  - key: Usage
-  - key: Sleep
-  - key: REM
-  - key: Deep
   - key: Timestamp # numeric Date
     name: Date
     plot: true
     x_field: true
     multi_x_field: true
+  - key: Pressure
+    x_field: false
+    multi_x_field: false
+  - key: Usage
+  - key: Sleep
+  - key: REM
+  - key: Deep
   - key: Efficiency # Calculated: Usage / Sleep
     name: Sleep Efficiency
 
