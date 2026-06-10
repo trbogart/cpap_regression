@@ -3,7 +3,7 @@ stats:
   enabled: true # false to disable all stats and log file
   save_logs: true # save logs (unless stats are disabled)
 filter:
-  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 41 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure

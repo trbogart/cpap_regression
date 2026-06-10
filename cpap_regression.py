@@ -279,26 +279,22 @@ class Regression:
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
             self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2g} total weight): {', '.join(dates)}')
+                      f'{total_weight:.2g} total weight): {', '.join(dates)}\n')
 
-        avg_pressure = self.df['Pressure'].mean()
+        def print_summary(df, prefix: str = ''):
+            avg_pressure = df['Pressure'].mean()
+            pressure_date_correlation = self._weighted_correlation(df['Pressure'],
+                                                                   df['Timestamp'],
+                                                                   df['WeightIgnoringFrequency'])
+            self._log(f'{prefix}Mean Pressure: {self._mean_pressure_string(avg_pressure)}')
+            self._log(f'{prefix}Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
 
-        pressure_date_correlation = self._weighted_correlation(self.df['Pressure'],
-                                                               self.df['Timestamp'],
-                                                               self.df['WeightIgnoringFrequency'])
-        self._log(f'\nMean Pressure: {self._mean_pressure_string(avg_pressure)}')
-        self._log(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+        print_summary(self.df)
 
         if self.dropped_pressure is not None:
-            new_avg_pressure = self.df_tomorrow['Pressure'].mean()
-            new_pressure_date_correlation = self._weighted_correlation(self.df_tomorrow['Pressure'],
-                                                                       self.df_tomorrow['Timestamp'],
-                                                                       self.df_tomorrow['WeightIgnoringFrequency'])
-
             # noinspection PyStringConversionWithoutDunderMethod
             self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
-            self._log(f'  New mean Pressure: {self._mean_pressure_string(new_avg_pressure)}')
-            self._log(f'  New correlation between Pressure and Date: {new_pressure_date_correlation:.2f}')
+            print_summary(self.df_tomorrow, '- ')
         else:
             self._log('Will not drop a row tomorrow')
 
