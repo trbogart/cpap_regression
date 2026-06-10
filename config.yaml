@@ -6,14 +6,16 @@ filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure: 7.0 # optional min Pressure
+  min_pressure:  # optional min Pressure
   max_pressure: 7.6 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
-pressure_counts: true
+pressure_counts:
+  enabled: true
+  max_dates: 5
 next_pressure:
   enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
@@ -131,7 +133,6 @@ fields:
     name: Regularity
     y_field: true
   - key: Pressure
-    x_field: false
     multi_x_field: false
   - key: Usage
   - key: Sleep

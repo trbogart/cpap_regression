@@ -236,7 +236,7 @@ class Regression:
         # noinspection PyStringConversionWithoutDunderMethod
         self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
 
-        if self.config['pressure_counts']:
+        if self.config['pressure_counts']['enabled']:
             self._pressure_counts()
 
         if len(self.df) < 2:
@@ -268,6 +268,14 @@ class Regression:
         for pressure in self.valid_pressures:
             data_for_pressure = self.df[self.df['Pressure'] == pressure]
             dates = data_for_pressure['Date']
+            max_dates = self.config['pressure_counts']['max_dates']
+            if max_dates and len(dates) > max_dates:
+                half = (max_dates - 1) // 2
+                dates_str = list(dates)[:half]
+                dates_str.append('...')
+                dates_str.extend(dates[-half:])
+                dates = dates_str
+
             total_usage = data_for_pressure['Usage'].sum()
             total_weight = data_for_pressure['Weight'].sum()
             self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
