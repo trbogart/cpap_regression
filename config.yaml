@@ -12,6 +12,8 @@ filter:
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.7 # optional min ratio between Sleep and Usage
+  # TODO set collar to 0 or 1 depending on results (also see TODOs below)
+  # TODO may titrate pressure with collar if I keep it
   collar:  # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
 pressure_counts:
@@ -123,7 +125,7 @@ fields:
     name: 95% Flow Limitation
   - key: AvgLR
     name: Average Leak Rate
-    x_field: true
+    x_field: false # TODO enable after collar experiment
     y_field: true
     multi_x_field: true
   - key: IFL
@@ -138,15 +140,15 @@ fields:
   - key: Timestamp # numeric Date
     name: Date
     plot: true
-    x_field: true
+    x_field: false # TODO enable after collar experiment
     multi_x_field: true
   - key: Pressure
     x_field: false
-    multi_x_field: false
+    multi_x_field: true
   - key: Collar
     plot: true
-    x_field: true
-    multi_x_field: true
+    x_field: true # TODO disable after collar experiment
+    multi_x_field: true # TODO disable after collar experiment
   - key: Usage
   - key: Sleep
   - key: REM
