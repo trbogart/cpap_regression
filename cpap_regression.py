@@ -75,7 +75,7 @@ class Regression:
                 calculate_rdi = True
             elif field.key == 'Efficiency':
                 calculate_efficiency = True
-            elif field.key == 'Timestamp':
+            elif field.key == 'Timestamp' or field.key == 'DateTime':
                 pass  # calculated from Date, which is always included
             elif field.key == 'NED Mean Split':
                 calculate_ned_mean_split = True
@@ -235,35 +235,9 @@ class Regression:
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
         self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
-        self._log('Pressure Counts:')
 
-        for pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.df['Pressure'] == pressure]
-            dates = data_for_pressure['Date']
-            total_usage = data_for_pressure['Usage'].sum()
-            total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2g} total weight): {', '.join(dates)}')
-
-        avg_pressure = self.df['Pressure'].mean()
-
-        pressure_date_correlation = self._weighted_correlation(self.df['Pressure'], self.df['Timestamp'],
-                                                               self.df['WeightIgnoringFrequency'])
-        self._log(f'\nMean Pressure: {self._mean_pressure_string(avg_pressure)}')
-        self._log(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
-
-        if self.dropped_pressure is not None:
-            new_avg_pressure = self.df_tomorrow['Pressure'].mean()
-            new_pressure_date_correlation = self._weighted_correlation(self.df_tomorrow['Pressure'],
-                                                                       self.df_tomorrow['Timestamp'],
-                                                                       self.df_tomorrow['WeightIgnoringFrequency'])
-
-            # noinspection PyStringConversionWithoutDunderMethod
-            self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
-            self._log(f'  New mean Pressure: {self._mean_pressure_string(new_avg_pressure)}')
-            self._log(f'  New correlation between Pressure and Date: {new_pressure_date_correlation:.2f}')
-        else:
-            self._log('Will not drop a row tomorrow')
+        if self.config['pressure_counts']:
+            self._pressure_counts()
 
         if len(self.df) < 2:
             self._log('Minimum N=2')
@@ -288,6 +262,37 @@ class Regression:
 
         if self.config['next_pressure']['enabled']:
             self._next_pressure()
+
+    def _pressure_counts(self):
+        self._log('Pressure Counts:')
+        for pressure in self.valid_pressures:
+            data_for_pressure = self.df[self.df['Pressure'] == pressure]
+            dates = data_for_pressure['Date']
+            total_usage = data_for_pressure['Usage'].sum()
+            total_weight = data_for_pressure['Weight'].sum()
+            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
+                      f'{total_weight:.2g} total weight): {', '.join(dates)}')
+
+        avg_pressure = self.df['Pressure'].mean()
+
+        pressure_date_correlation = self._weighted_correlation(self.df['Pressure'],
+                                                               self.df['Timestamp'],
+                                                               self.df['WeightIgnoringFrequency'])
+        self._log(f'\nMean Pressure: {self._mean_pressure_string(avg_pressure)}')
+        self._log(f'Correlation between Pressure and Date: {pressure_date_correlation:.2f}')
+
+        if self.dropped_pressure is not None:
+            new_avg_pressure = self.df_tomorrow['Pressure'].mean()
+            new_pressure_date_correlation = self._weighted_correlation(self.df_tomorrow['Pressure'],
+                                                                       self.df_tomorrow['Timestamp'],
+                                                                       self.df_tomorrow['WeightIgnoringFrequency'])
+
+            # noinspection PyStringConversionWithoutDunderMethod
+            self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
+            self._log(f'  New mean Pressure: {self._mean_pressure_string(new_avg_pressure)}')
+            self._log(f'  New correlation between Pressure and Date: {new_pressure_date_correlation:.2f}')
+        else:
+            self._log('Will not drop a row tomorrow')
 
     def _mean_pressure_string(self, avg_pressure: float) -> str:
         center_diff = avg_pressure - self.center_pressure

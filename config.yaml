@@ -1,18 +1,19 @@
 data_file: cpap.csv # CSV file
 stats:
   enabled: true # false to disable all stats and log file
-  save_logs: false # save logs (unless stats are disabled)
+  save_logs: true # save logs (unless stats are disabled)
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure:  # optional min Pressure
-  max_pressure:  # optional max Pressure
+  min_pressure: 7.0 # optional min Pressure
+  max_pressure: 7.6 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
+pressure_counts: true
 next_pressure:
   enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
@@ -31,7 +32,7 @@ linear:
   enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
   min_correlation: 0.2 # optional minimum correlation to display (default 0)
-  plot: false # true to enable plotting when enabled for both x and y fields
+  plot: true # true to enable plotting when enabled for both x and y fields
   plot_quadratic: false # include quadratic regression in plots
   save_plots: false # save plots
 elastic_net:
@@ -116,7 +117,6 @@ fields:
     plot: true
   - key: 95%FL
     name: 95% Flow Limitation
-    y_field: true
   - key: AvgLR
     name: Average Leak Rate
     y_field: true
@@ -131,19 +131,15 @@ fields:
     name: Regularity
     y_field: true
   - key: Pressure
-    x_field: true # primary x field
-    plot: true
-    multi_x_field: true
+    x_field: false
+    multi_x_field: false
   - key: Usage
-    multi_x_field: true
   - key: Sleep
-    multi_x_field: true
   - key: REM
-    multi_x_field: true
   - key: Deep
-    multi_x_field: true
   - key: Timestamp # numeric Date
     name: Date
+    plot: true
     x_field: true
     multi_x_field: true
   - key: Efficiency # Calculated: Usage / Sleep
