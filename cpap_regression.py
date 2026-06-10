@@ -280,8 +280,8 @@ class Regression:
             if self.config['elastic_net']['enabled']:
                 self._elastic_net()
 
-            if self.config['bayesian']['enabled']:
-                self._bayesian()
+            if self.config['bayesian_ridge']['enabled']:
+                self._bayesian_ridge()
 
             if self.config['ard']['enabled']:
                 self._ard()
@@ -601,8 +601,8 @@ class Regression:
             model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
             self._print_multi_field_weights(y_field, model.coef_)
 
-    def _bayesian(self):
-        min_weight = self.config['bayesian']['min_weight'] if self.config['bayesian']['min_weight'] else 0
+    def _bayesian_ridge(self):
+        min_weight = self.config['bayesian_ridge']['min_weight'] if self.config['bayesian_ridge']['min_weight'] else 0
         self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
         for y_field in self.multi_y_fields:
             model = BayesianRidge()

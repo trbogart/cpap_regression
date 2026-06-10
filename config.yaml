@@ -1,6 +1,6 @@
 data_file: cpap.csv # CSV file
 stats:
-  enabled: false # false to disable all stats and log file
+  enabled: true # false to disable all stats and log file
   save_logs: false # save logs (unless stats are disabled)
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
@@ -14,7 +14,7 @@ filter:
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
 next_pressure:
-  enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
+  enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 1.2 # optional sigma used to randomly adjust counts
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
@@ -35,15 +35,15 @@ linear:
   plot_quadratic: false # include quadratic regression in plots
   save_plots: false # save plots
 elastic_net:
-  enabled: true # true to enable ElasticNet regression using multi_x_field
+  enabled: false # true to enable ElasticNet regression using multi_x_field
   alpha: 1.0 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
   seed: 42 # random seed
-bayesian:
+bayesian_ridge:
   enabled: false # perform BayesianRidge regression using multi_x_field
   min_weight: 0.2 # optional minimum BayesianRidge weight to print
 ard:
-  enabled: false # perform ARD Bayesian regression using multi_x_field
+  enabled: true # perform ARD Bayesian regression using multi_x_field
   min_weight: 0.2 # optional minimum ARD weight to print
 # fields
 # - key: key in CSV
