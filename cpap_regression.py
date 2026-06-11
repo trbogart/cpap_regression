@@ -151,6 +151,9 @@ class Regression:
             self._log('No data')
             sys.exit(1)
 
+        if self.config['pressure_transform']:
+            self.df['Pressure'] = self.df['Pressure'].replace(self.config['pressure_transform'])
+
         # get last pressure before config filtering so next pressure logic will work correctly
         self.last_pressure: float = self.df['Pressure'].iloc[-1]
 
