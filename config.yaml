@@ -8,8 +8,8 @@ filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure: 7.0 # optional min Pressure
-  max_pressure: 8.0 # optional max Pressure
+  min_pressure:  # optional min Pressure
+  max_pressure:  # optional max Pressure
   max_leak_rate: 1.5 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
@@ -17,8 +17,8 @@ filter:
   collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
 pressure_transform: # use to combine pressure with another pressure (applied before filters)
-  6.8: 7.0
-  8.2: 8.0
+  6.8: 7.0 # combine single 6.8 row with 7.0
+  8.2: 8.0 # combine single 8.2 row with 8.0
 pressure_counts:
   enabled: true # true to show a breakdown of dates for each pressure
   max_dates: 5 # optional maximum number of dates displayed for each pressure
@@ -60,10 +60,10 @@ elastic_net:
   seed: 42 # random seed
 bayesian_ridge:
   enabled: false # perform BayesianRidge regression using multi_x_field
-  min_weight: 0.2 # optional minimum BayesianRidge weight to print
+  min_weight: 0.2 # optional minimum BayesianRidge weight to print (default 0)
 ard:
   enabled: false # perform ARD Bayesian regression using multi_x_field
-  min_weight: 0.2 # optional minimum ARD weight to print
+  min_weight: 0.2 # optional minimum ARD weight to print (default 0)
 # fields
 # - key: key in CSV
 # - name: optional display name (defaults to key)

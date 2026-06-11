@@ -152,8 +152,13 @@ class Regression:
             self._log('No data')
             sys.exit(1)
 
-        if self.config['pressure_transform']:
-            self.df['Pressure'] = self.df['Pressure'].replace(self.config['pressure_transform'])
+        pressure_transform: dict[float, float] = self.config['pressure_transform']
+        if pressure_transform:
+            pressure_counts = self.df['Pressure'].value_counts()
+            for pressure in pressure_transform.keys():
+                if pressure_counts.get(pressure, 0) == 0:
+                    self._log(f"Config 'pressure_transform[{pressure:.1f}]' is not used")
+            self.df['Pressure'] = self.df['Pressure'].replace(pressure_transform)
 
         # get last pressure before config filtering so next pressure logic will work correctly
         self.last_pressure: float = self.df['Pressure'].iloc[-1]
@@ -297,18 +302,17 @@ class Regression:
             if self.config['all_correlations']['enabled']:
                 self._all_correlations()
 
-            # Correlations and plots
-            if self.config['correlation']['enabled'] or self.config['plot']['enabled']:
-                self._linear()
+            # Correlations, linear, and quadratic regressions
+            self._linear_quadratic()
 
-            if self.config['elastic_net']['enabled']:
-                self._elastic_net()
+            # Elastic Net to regularize multi_x_fields
+            self._elastic_net()
 
-            if self.config['bayesian_ridge']['enabled']:
-                self._bayesian_ridge()
+            # Bayesian Ridge to regularize multi_x_fields
+            self._bayesian_ridge()
 
-            if self.config['ard']['enabled']:
-                self._ard()
+            # ARD Regression to regularize multi_x_fields
+            self._ard()
 
         if self.config['next_pressure']['enabled']:
             self._next_pressure()
@@ -562,15 +566,15 @@ class Regression:
         for field1, field2, correlation in correlations:
             self._log(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
 
-    def _linear(self):
+    def _linear_quadratic(self):
         for x_field in self.x_fields:
             if len(self.df[x_field.key].unique()) < 2:
                 self._log(f'\nSkip {x_field.name}: only 1 value')
             else:
-                corr_and_r2 = [(y_field, self._linear_field(y_field, x_field))
-                               for y_field in self.y_fields if x_field != y_field]
+                field_corr_and_r2_scores = [(y_field, self._linear_quadratic_field(y_field, x_field))
+                                            for y_field in self.y_fields if x_field != y_field]
                 if self.config['correlation']['enabled']:
-                    correlations = [(y_field, corr) for y_field, (corr, _, _) in corr_and_r2]
+                    correlations = [(y_field, corr) for y_field, (corr, _, _) in field_corr_and_r2_scores]
                     num_correlations = self.config['correlation']['num_correlations']
                     min_correlation = self.config['correlation']['min_correlation']
                     self._print_correlation_summary(field=x_field,
@@ -579,10 +583,10 @@ class Regression:
                     self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
 
                 if self.config['r2']['linear']:
-                    r2_scores = [(y_field, r2) for y_field, (_, r2, _) in corr_and_r2]
+                    r2_scores = [(y_field, r2_linear) for y_field, (_, r2_linear, _) in field_corr_and_r2_scores]
                     self._print_r2('Linear', x_field, r2_scores)
                 if self.config['r2']['quadratic']:
-                    r2_scores = [(y_field, r2) for y_field, (_, _, r2) in corr_and_r2]
+                    r2_scores = [(y_field, r2_quadratic) for y_field, (_, _, r2_quadratic) in field_corr_and_r2_scores]
                     self._print_r2('Quadratic', x_field, r2_scores)
 
     def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None,
@@ -637,8 +641,8 @@ class Regression:
             if not min_weight or abs(weight) > min_weight:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
-    # correlations and
-    def _linear_field(self, y_field: Field, x_field: Field) -> tuple[float, float, float]:
+    # return correlation, linear R2 score, and quadratic R2 score
+    def _linear_quadratic_field(self, y_field: Field, x_field: Field) -> tuple[float, float, float]:
         x = self.df[x_field.key]
         y = self.df[y_field.key]
         correl = self._weighted_correlation(x, y, self.df['Weight'])
@@ -698,6 +702,7 @@ class Regression:
 
                     # plot minima or maxima of quadratic regression, if in domain
                     x_extrema = -b / (2 * a)
+                    # noinspection PyUnresolvedReferences
                     if x.min() <= x_extrema <= x.max():
                         plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
@@ -709,33 +714,38 @@ class Regression:
 
     def _elastic_net(self):
         config = self.config['elastic_net']
-        self._log(f'\nNon-zero ElasticNet weights with alpha {config['alpha']} '
-                  f'and l1_ratio = {config['l1_ratio']}:')
-        for y_field in self.multi_y_fields:
-            model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
-                                 l1_ratio=config['l1_ratio'], fit_intercept=True,
-                                 random_state=config['seed'])
-            model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
-            self._print_multi_field_weights(y_field, model.coef_)
+        if config['enabled']:
+            self._log(f'\nNon-zero ElasticNet weights with alpha {config['alpha']} '
+                      f'and l1_ratio = {config['l1_ratio']}:')
+            for y_field in self.multi_y_fields:
+                model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
+                                     l1_ratio=config['l1_ratio'], fit_intercept=True,
+                                     random_state=config['seed'])
+                model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
+                self._print_multi_field_weights(y_field, model.coef_)
 
     def _bayesian_ridge(self):
-        min_weight = self.config['bayesian_ridge']['min_weight'] if self.config['bayesian_ridge']['min_weight'] else 0
-        self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
-        for y_field in self.multi_y_fields:
-            model = BayesianRidge()
-            model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
-            self._print_multi_field_weights(y_field, model.coef_, min_weight)
+        config = self.config['bayesian_ridge']
+        if config['enabled']:
+            min_weight = config['min_weight'] if config['min_weight'] else 0
+            self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
+            for y_field in self.multi_y_fields:
+                model = BayesianRidge()
+                model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
+                self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _ard(self):
-        min_weight = self.config['ard']['min_weight'] if self.config['ard']['min_weight'] else 0
-        self._log(f'\nARD weights with magnitude > {min_weight}:')
-        for y_field in self.multi_y_fields:
-            weights_sqrt = np.sqrt(np.array(self.df['Weight']))
-            X_weighted = self.multi_x_scaled * weights_sqrt[:, np.newaxis]
-            y_weighted = self.df[y_field.key] * weights_sqrt
-            model = ARDRegression()
-            model.fit(X_weighted, y_weighted)
-            self._print_multi_field_weights(y_field, model.coef_, min_weight)
+        config = self.config['ard']
+        if config['enabled']:
+            min_weight = config['min_weight'] if config['min_weight'] else 0
+            self._log(f'\nARD weights with magnitude > {min_weight}:')
+            for y_field in self.multi_y_fields:
+                weights_sqrt = np.sqrt(np.array(self.df['Weight']))
+                X_weighted = self.multi_x_scaled * weights_sqrt[:, np.newaxis]
+                y_weighted = self.df[y_field.key] * weights_sqrt
+                model = ARDRegression()
+                model.fit(X_weighted, y_weighted)
+                self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
         field_weights = [(self.multi_x_fields[i], weight) for i, weight in enumerate(weights)
