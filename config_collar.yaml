@@ -1,23 +1,22 @@
 data_file: cpap.csv # CSV file
-tag: # optional tag for saved files
+tag: collar # optional tag for saved files
 save_logs: false # save logs (unless stats are disabled)
 stats:
   enabled: true # false to disable all stats and log file
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.0 # optional min Pressure
-  max_pressure: 8.0 # optional max Pressure
+  max_pressure: 7.8 # optional max Pressure
   max_leak_rate: 1.5 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
-  # TODO experiment with collar
-  collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
+  collar:  # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
 pressure_counts:
-  enabled: true # true to show a breakdown of dates for each pressure
+  enabled: false # true to show a breakdown of dates for each pressure
   max_dates: 5 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
@@ -128,7 +127,7 @@ fields:
     name: 95% Flow Limitation
   - key: AvgLR
     name: Average Leak Rate
-    x_field: true
+    x_field: false
     y_field: true
     multi_x_field: true
   - key: IFL
@@ -142,16 +141,16 @@ fields:
     y_field: true
   - key: Timestamp # numeric Date
     name: Date
-    x_field: true
+    x_field: false
     multi_x_field: true
   - key: Pressure
     plot: true
-    x_field: true
+    x_field: false
     multi_x_field: true
   - key: Collar
-    plot: false
-    x_field: false # TODO experiment with collar (disable other x fields)
-    multi_x_field: true # TODO experiment with collar
+    plot: true
+    x_field: true
+    multi_x_field: true
   - key: Usage
   - key: Sleep
   - key: REM

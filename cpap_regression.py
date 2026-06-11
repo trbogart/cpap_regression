@@ -1,3 +1,4 @@
+import argparse
 import random
 import sys
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from numpy.polynomial.polynomial import Polynomial
 from pandas import DatetimeIndex
 from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
 from sklearn.preprocessing import StandardScaler
+
+default_config_file = 'config.yaml'
 
 
 @dataclass(frozen=True)
@@ -101,7 +104,7 @@ class Regression:
         self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
 
         # Dates have to be known before opening log file (ignoring value filtering)
-        if self.config['stats']['enabled'] and self.config['stats']['save_logs']:
+        if self.config['stats']['enabled'] and self.config['save_logs']:
             self.log_file = open(self._log_filename(), 'w')
         else:
             self.log_file = None
@@ -584,7 +587,7 @@ class Regression:
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
-            def show_plot(tags: list[str]|None = None):
+            def show_plot(tags: list[str] | None = None):
                 weighted_by = self._weighted_by(include_unweighted=False)
                 title_lines = [f'{y_field.title} vs. {x_field.title}']
                 if weighted_by:
@@ -600,11 +603,11 @@ class Regression:
                 plt.show()
 
             if plot_config['violin']:
-                if self.config['weighted_by']['usage']: # TODO implement
+                if self.config['weighted_by']['usage']:  # TODO implement
                     self._log('Violin plot currently not supported with weighted_by.usage')
                     sys.exit(1)
 
-                ifw = self.config['weighted_by']['frequency'] # using inverse frequency weighting?
+                ifw = self.config['weighted_by']['frequency']  # using inverse frequency weighting?
                 sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart',
                                density_norm='area' if ifw else 'count')
                 show_plot(tags=['violin'])
@@ -671,7 +674,7 @@ class Regression:
             self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix=' -- ')
 
-    def _plot_filename(self, y_field: Field, x_field: Field, tags: list[str]|None = None):
+    def _plot_filename(self, y_field: Field, x_field: Field, tags: list[str] | None = None):
         y_field_name = y_field.key.lower().replace(' ', '_')
         x_field_name = x_field.key.lower().replace(' ', '_')
         return f'{y_field_name}_{x_field_name}_{self._base_filename(tags)}.png'
@@ -679,8 +682,10 @@ class Regression:
     def _log_filename(self):
         return f'results_{self._base_filename()}.txt'
 
-    def _base_filename(self, tags: list[str]|None = None) -> str:
-        s = tags[:] if tags else []
+    def _base_filename(self, tags: list[str] | None = None) -> str:
+        s = [self.config['tag']] if self.config['tag'] else []
+        if tags:
+            s.extend(tags)
         if self.config['weighted_by']['frequency']:
             s.append('freq')
         if self.config['weighted_by']['usage']:
@@ -706,4 +711,8 @@ class Regression:
 
 
 if __name__ == '__main__':
-    Regression('config.yaml').run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', default=default_config_file,
+                        help=f'Configuration file (default {default_config_file})')
+    args = parser.parse_args()
+    Regression(args.config).run()
