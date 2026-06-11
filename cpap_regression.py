@@ -12,6 +12,7 @@ import yaml
 from numpy.polynomial.polynomial import Polynomial
 from pandas import DatetimeIndex
 from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
+from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 
 default_config_file = 'config.yaml'
@@ -566,15 +567,22 @@ class Regression:
             if len(self.df[x_field.key].unique()) < 2:
                 self._log(f'\nSkip {x_field.name}: only 1 value')
             else:
-                correlations = [(y_field, self._linear_field(y_field, x_field))
+                corr_and_r2 = [(y_field, self._linear_field(y_field, x_field))
                                 for y_field in self.y_fields if x_field != y_field]
                 if self.config['correlation']['enabled']:
+                    correlations = [(y_field, corr) for y_field, (corr, _) in corr_and_r2]
                     num_correlations = self.config['correlation']['num_correlations']
                     min_correlation = self.config['correlation']['min_correlation']
                     self._print_correlation_summary(field=x_field,
                                                     num_correlations=num_correlations,
                                                     min_correlation=min_correlation)
                     self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
+                if self.config['r2']['enabled']:
+                    r2_scores = [(y_field, r2) for y_field, (_, r2) in corr_and_r2]
+                    num_scores = self.config['r2']['num_scores']
+                    min_score = self.config['r2']['min_score']
+                    self._print_r2_summary(field=x_field, num_scores=num_scores, min_score=min_score)
+                    self._print_field_weights(r2_scores, max_count=num_scores, min_weight=min_score)
 
     def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None,
                                    min_correlation: float | None = None):
@@ -589,6 +597,22 @@ class Regression:
             s.append('between all enabled fields')
         if min_correlation:
             s.append(f'with magnitude > {min_correlation}')
+
+        self._log(f'\n{' '.join(s)}')
+
+    def _print_r2_summary(self, field: Field | None = None, num_scores: int | None = None,
+                          min_score: float | None = None):
+        s = []
+        if num_scores:
+            s.append(f'Top {num_scores} coefficients of determination')
+        else:
+            s.append('Coefficients of determination')
+        if field:
+            s.append(f'for {field.name}')
+        else:
+            s.append('between all enabled fields')
+        if min_score:
+            s.append(f'with magnitude > {num_scores}')
 
         self._log(f'\n{' '.join(s)}')
 
@@ -614,10 +638,14 @@ class Regression:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
     # correlations and
-    def _linear_field(self, y_field: Field, x_field: Field) -> float:
+    def _linear_field(self, y_field: Field, x_field: Field) -> tuple[float, float]:
         x = self.df[x_field.key]
         y = self.df[y_field.key]
         correl = self._weighted_correlation(x, y, self.df['Weight'])
+
+        poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
+        y_pred = poly1(x)
+        r2 = r2_score(y, y_pred, sample_weight=self.df['Weight'])
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
@@ -626,7 +654,7 @@ class Regression:
                 title_lines = [f'{y_field.title} vs. {x_field.title}']
                 if weighted_by:
                     title_lines.append(weighted_by)
-                title_lines.append(f'r = {correl:.3f}')
+                title_lines.append(f'r = {correl:.3f}, R² = {r2:.3f}')
 
                 plt.xlabel(f'{x_field.name}')
                 plt.ylabel(y_field.name)
@@ -660,7 +688,6 @@ class Regression:
                 polyline = np.linspace(x.min(), x.max(), 100)
                 if plot_config['linear']:
                     # linear regression
-                    poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
                     plt.plot(polyline, poly1(polyline), color='blue')
 
                 # quadratic regression
@@ -677,7 +704,7 @@ class Regression:
 
                 show_plot()
 
-        return correl
+        return correl, r2
 
     def _elastic_net(self):
         config = self.config['elastic_net']
