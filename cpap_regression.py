@@ -595,7 +595,7 @@ class Regression:
         if field:
             s.append(f'for {field.name}')
         else:
-            s.append('between all enabled fields') # for all_correlations
+            s.append('between all enabled fields')  # for all_correlations
         if min_correlation:
             s.append(f'with magnitude > {min_correlation}')
 
