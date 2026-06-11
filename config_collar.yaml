@@ -40,7 +40,8 @@ correlation:
   min_correlation: 0.2 # optional minimum correlation to display (default 0)
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
-  violin: true # true for violin plot (separate from linear and quadratic if enabled)
+  violin: true # true for violin plot
+  box: false # true for box plot
   linear: true # true to plot scatter plot and linear regression
   quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
   save: false # save plots

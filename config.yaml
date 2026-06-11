@@ -41,8 +41,9 @@ correlation:
   min_correlation: 0.2 # optional minimum correlation to display (default 0)
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
-  violin: true # true for violin plot (separate from linear and quadratic if enabled)
-  linear: true # true to plot scatter plot and linear regression
+  violin: false # true for violin plot
+  box: true # true for box plot
+  linear: false # true to plot scatter plot and linear regression
   quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
   save: false # save plots
 elastic_net:
@@ -68,6 +69,7 @@ fields:
   - key: Comb FL
     name: Combined FL
     y_field: true
+    plot: true
   - key: FLS
     name: Flow Limitation Score
     y_field: true

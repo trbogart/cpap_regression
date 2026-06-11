@@ -103,6 +103,10 @@ class Regression:
         self.df.sort_values(by='DateTime', inplace=True)
         self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
 
+        self.tags = [self.config['tag']] if self.config['tag'] else []
+        if self.config['stats']['bucket']:
+            self.tags.append('bucket')
+
         # Dates have to be known before opening log file (ignoring value filtering)
         if self.config['stats']['enabled'] and self.config['save_logs']:
             self.log_file = open(self._log_filename(), 'w')
@@ -630,7 +634,7 @@ class Regression:
                 plt.show()
 
             if plot_config['violin']:
-                if self.config['weighted_by']['usage']:  # TODO implement
+                if self.config['weighted_by']['usage']:
                     self._log('Violin plot currently not supported with weighted_by.usage')
                     sys.exit(1)
 
@@ -638,6 +642,14 @@ class Regression:
                 sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart',
                                density_norm='area' if ifw else 'count')
                 show_plot(tags=['violin'])
+
+            if plot_config['box']:
+                if self.config['weighted_by']['usage'] or self.config['weighted_by']['frequency']:
+                    self._log('Box plot currently not supported with weighted_by')
+                    sys.exit(1)
+
+                sns.boxplot(data=self.df, x=x_field.key, y=y_field.key)
+                show_plot(tags=['box'])
 
             if plot_config['linear'] or plot_config['quadratic']:
                 plt.scatter(x, y)
@@ -709,17 +721,17 @@ class Regression:
     def _log_filename(self):
         return f'results_{self._base_filename()}.txt'
 
-    def _base_filename(self, tags: list[str] | None = None) -> str:
-        s = [self.config['tag']] if self.config['tag'] else []
-        if tags:
-            s.extend(tags)
+    def _base_filename(self, extra_tags: list[str] | None = None) -> str:
+        tags = self.tags[:]
+        if extra_tags:
+            tags.extend(extra_tags)
         if self.config['weighted_by']['frequency']:
-            s.append('freq')
+            tags.append('freq')
         if self.config['weighted_by']['usage']:
-            s.append('usage')
+            tags.append('usage')
         # noinspection PyStringConversionWithoutDunderMethod
-        s.append(str(self.df['Date'].max()))
-        return '_'.join(s)
+        tags.append(str(self.df['Date'].max()))
+        return '_'.join(tags)
 
     @staticmethod
     def _weighted_correlation(x, y, weights) -> float:
