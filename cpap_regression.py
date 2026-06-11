@@ -218,6 +218,28 @@ class Regression:
         self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
                                                      int(round(self.max_pressure * 5)) + 1)]
 
+        num_pressures = len(self.valid_pressures)
+        if self.config['stats']['bucket'] and num_pressures > 3:
+            if num_pressures % 2 == 1:
+                self._log("Warning: 'bucket' used with odd number of buckets")
+            pressure_bucket_map = {}
+            new_valid_pressures = []
+
+            last_bucket_pressure = 0
+            for i, pressure in enumerate(self.valid_pressures):
+                if i % 2 == 0:
+                    last_bucket_pressure = round(pressure + 0.1, 1)
+                    new_valid_pressures.append(last_bucket_pressure)
+                    pressure_bucket_map[pressure] = last_bucket_pressure
+                else:
+                    pressure_bucket_map[pressure] = last_bucket_pressure
+
+            self.df['Pressure'] = self.df['Pressure'].replace(pressure_bucket_map)
+            self.valid_pressures = new_valid_pressures
+            self.min_pressure = pressure_bucket_map[self.min_pressure]
+            self.max_pressure = pressure_bucket_map[self.max_pressure]
+            self.last_pressure = pressure_bucket_map[self.last_pressure]
+
         self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
@@ -378,29 +400,34 @@ class Regression:
             self._log(
                 f'\nPressure that would move mean Pressure to center ({self.center_pressure:.1f}): {target_pressure:.1f}')
             self._log(f'Next Pressure Scores:')
+
+        last_pressure_boost = self.config['next_pressure']['last_pressure_boost']
+        pressure_boosts = self.config['next_pressure']['pressure_boosts']
+        center_weight = self.config['next_pressure']['center_weight']
+        random_sigma = self.config['next_pressure']['random_sigma']
+
         for pressure in self.valid_pressures:
             pressure_weight = pressure_weights.get(pressure, 0)
 
             if pressure_weight == 0 and pressure in extreme_pressures:
                 # always select extreme pressure with zero count
                 pressure_boost = float('inf')
-            elif self.config['next_pressure']['last_pressure_boost'] and pressure == self.last_pressure:
+            elif last_pressure_boost and pressure == self.last_pressure:
                 # otherwise prefer most recent pressure
-                pressure_boost = self.config['next_pressure']['last_pressure_boost']
+                pressure_boost = last_pressure_boost
             else:
                 pressure_boost = 0
 
-            if self.config['next_pressure']['pressure_boosts']:
-                pressure_boost += self.config['next_pressure']['pressure_boosts'].get(pressure, 0)
+            if pressure_boosts:
+                pressure_boost += pressure_boosts.get(pressure, 0)
 
-            if self.config['next_pressure']['center_weight']:
-                center_distance = round(abs(pressure - target_pressure) * self.config['next_pressure']['center_weight'],
-                                        1)
+            if center_weight:
+                center_distance = round(abs(pressure - target_pressure) * center_weight, 1)
             else:
                 center_distance = 0
 
-            if self.config['next_pressure']['random_sigma']:
-                random_adjustment = random.gauss(sigma=self.config['next_pressure']['random_sigma'])
+            if random_sigma:
+                random_adjustment = random.gauss(sigma=random_sigma)
             else:
                 random_adjustment = 0
 

@@ -3,6 +3,7 @@ tag: collar # optional tag for saved files
 save_logs: false # save logs (unless stats are disabled)
 stats:
   enabled: true # false to disable all stats and log file
+  bucket: false # true to combine adjacent pressures
 filter:
   max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
