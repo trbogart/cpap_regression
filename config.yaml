@@ -3,7 +3,7 @@ tag: # optional tag for saved files
 save_logs: false # save logs (unless stats are disabled)
 stats:
   enabled: true # false to disable all stats and log file
-  bucket: false # true to combine adjacent pressures (works best with even number of pressures)
+  bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 filter:
   max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
@@ -16,7 +16,9 @@ filter:
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
-pressure_transform: # use to consolidate pressure with another pressure (applied before filters)
+pressure_transform: # use to combine pressure with another pressure (applied before filters)
+  6.8: 7.0
+  8.2: 8.0
 pressure_counts:
   enabled: true # true to show a breakdown of dates for each pressure
   max_dates: 5 # optional maximum number of dates displayed for each pressure
@@ -26,7 +28,7 @@ next_pressure:
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 0.5 # optional sigma used to randomly adjust counts
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-  center_weight: 1 # multiplier applied to distance from pressure that will center mean
+  center_weight: 0 # multiplier applied to distance from pressure that will center mean
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
