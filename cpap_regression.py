@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import yaml
-from numpy.f2py.auxfuncs import isfunction_wrap
 from numpy.polynomial.polynomial import Polynomial
 from pandas import DatetimeIndex
 from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
@@ -265,8 +264,8 @@ class Regression:
             if self.config['all_correlations']['enabled']:
                 self._all_correlations()
 
-            # Correlation and linear regression
-            if self.config['linear']['enabled']:
+            # Correlations and plots
+            if self.config['correlation']['enabled'] or self.config['plot']['enabled']:
                 self._linear()
 
             if self.config['elastic_net']['enabled']:
@@ -526,18 +525,19 @@ class Regression:
             self._log(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
 
     def _linear(self):
-        config = self.config['linear']
         for x_field in self.x_fields:
             if len(self.df[x_field.key].unique()) < 2:
-                self._log(f'\nSkip correlations for {x_field.name}, only 1 value')
+                self._log(f'\nSkip {x_field.name}: only 1 value')
             else:
-                correlations = [
-                    (y_field, self._linear_field(y_field, x_field)) for y_field in self.y_fields if x_field != y_field]
-                num_correlations = config['num_correlations']
-                min_correlation = config['min_correlation']
-                self._print_correlation_summary(field=x_field, num_correlations=num_correlations,
-                                                min_correlation=min_correlation)
-                self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
+                correlations = [(y_field, self._linear_field(y_field, x_field))
+                                for y_field in self.y_fields if x_field != y_field]
+                if self.config['correlation']['enabled']:
+                    num_correlations = self.config['correlation']['num_correlations']
+                    min_correlation = self.config['correlation']['min_correlation']
+                    self._print_correlation_summary(field=x_field,
+                                                    num_correlations=num_correlations,
+                                                    min_correlation=min_correlation)
+                    self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
 
     def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None,
                                    min_correlation: float | None = None):
@@ -578,29 +578,45 @@ class Regression:
 
     # correlations and
     def _linear_field(self, y_field: Field, x_field: Field) -> float:
-        plot_config = self.config['linear']['plot']
         x = self.df[x_field.key]
         y = self.df[y_field.key]
         correl = self._weighted_correlation(x, y, self.df['Weight'])
-        tags = []
+
+        plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
+            def show_plot(tags: list[str]|None = None):
+                weighted_by = self._weighted_by(include_unweighted=False)
+                title_lines = [f'{y_field.title} vs. {x_field.title}']
+                if weighted_by:
+                    title_lines.append(weighted_by)
+                title_lines.append(f'r = {correl:.3f}')
+
+                plt.xlabel(f'{x_field.name}')
+                plt.ylabel(y_field.name)
+                plt.title('\n'.join(title_lines))
+                plt.tight_layout()
+                if plot_config['save']:
+                    plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
+                plt.show()
+
             if plot_config['violin']:
                 if self.config['weighted_by']['usage']: # TODO implement
                     self._log('Violin plot currently not supported with weighted_by.usage')
                     sys.exit(1)
 
-                tags.append('violin')
                 ifw = self.config['weighted_by']['frequency'] # using inverse frequency weighting?
                 sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart',
                                density_norm='area' if ifw else 'count')
-            else:
+                show_plot(tags=['violin'])
+
+            if plot_config['linear'] or plot_config['quadratic']:
                 plt.scatter(x, y)
-                x_min = x.min()
-                x_max = x.max()
-                polyline = np.linspace(x_min, x_max, 100)
-                # linear regression
-                poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
-                plt.plot(polyline, poly1(polyline), color='blue')
+
+                polyline = np.linspace(x.min(), x.max(), 100)
+                if plot_config['linear']:
+                    # linear regression
+                    poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
+                    plt.plot(polyline, poly1(polyline), color='blue')
 
                 # quadratic regression
                 if plot_config['quadratic']:
@@ -609,24 +625,12 @@ class Regression:
 
                     # plot minima or maxima of quadratic regression, if in domain
                     x_extrema = -b / (2 * a)
-                    if x_min <= x_extrema <= x_max:
+                    if x.min() <= x_extrema <= x.max():
                         plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
                     plt.plot(polyline, poly2(polyline), color='red')
 
-            weighted_by = self._weighted_by(include_unweighted=False)
-            title_lines = [f'{y_field.title} vs. {x_field.title}']
-            if weighted_by:
-                title_lines.append(weighted_by)
-            title_lines.append(f'r = {correl:.3f}')
-
-            plt.xlabel(f'{x_field.name}')
-            plt.ylabel(y_field.name)
-            plt.title('\n'.join(title_lines))
-            plt.tight_layout()
-            if plot_config['save']:
-                plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
-            plt.show()
+                show_plot()
 
         return correl
 
@@ -667,7 +671,7 @@ class Regression:
             self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix=' -- ')
 
-    def _plot_filename(self, y_field: Field, x_field: Field, tags: list[str]):
+    def _plot_filename(self, y_field: Field, x_field: Field, tags: list[str]|None = None):
         y_field_name = y_field.key.lower().replace(' ', '_')
         x_field_name = x_field.key.lower().replace(' ', '_')
         return f'{y_field_name}_{x_field_name}_{self._base_filename(tags)}.png'

@@ -33,15 +33,16 @@ all_correlations:
   enabled: false # true to run correlations between all enabled fields
   num_correlations: # optional number of correlations to display between all fields (null to display all)
   min_correlation: 0.5 # optional minimum correlation to display (default 0)
-linear:
+correlation:
   enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
   min_correlation: 0.2 # optional minimum correlation to display (default 0)
-  plot:
-    enabled: true # true to enable plotting when enabled for both x and y fields
-    violin: true # true for violin plot (ignores weights), false for linear regression
-    quadratic: false # include quadratic regression in plots (ignored if violin)
-    save: false # save plots
+plot:
+  enabled: true # true to enable plotting when enabled for both x and y fields
+  violin: true # true for violin plot (separate from linear and quadratic if enabled)
+  linear: false # true to plot scatter plot and linear regression
+  quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
+  save: false # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field
   alpha: 1.0 # alpha for ElasticNet regression
