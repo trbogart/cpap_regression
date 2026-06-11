@@ -1,3 +1,6 @@
 # CPAP Regression
 
-CPAP regression for data from AirSense 11, including data from [AirwayLab](https://airwaylab.app/)
+CPAP regression for data from AirSense 11, including data from [AirwayLab](https://airwaylab.app/).
+
+## Requirements
+See `requirements.txt` for requirements.
