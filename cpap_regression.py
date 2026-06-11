@@ -612,7 +612,7 @@ class Regression:
         else:
             s.append('between all enabled fields')
         if min_score:
-            s.append(f'with magnitude > {num_scores}')
+            s.append(f'with magnitude > {min_score}')
 
         self._log(f'\n{' '.join(s)}')
 
