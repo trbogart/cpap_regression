@@ -3,29 +3,28 @@ stats:
   enabled: true # false to disable all stats and log file
   save_logs: false # save logs (unless stats are disabled)
 filter:
-  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure:  # optional min Pressure
-  max_pressure: 7.6 # optional max Pressure
+  min_pressure: 7.0 # optional min Pressure
+  max_pressure: 8.0 # optional max Pressure
   max_leak_rate: 1.5 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.7 # optional min ratio between Sleep and Usage
-  # TODO set collar to 0 or 1 depending on results (also see TODOs below)
-  # TODO may titrate pressure with collar if I keep it
-  collar:  # optional collar value (0 for no collar, 1 for collar, or null for both)
+  # TODO experiment with collar
+  collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
 pressure_counts:
-  enabled: false # true to show a breakdown of dates for each pressure
+  enabled: true # true to show a breakdown of dates for each pressure
   max_dates: 5 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
   enabled: false # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
+  last_pressure_boost: 1 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 1.2 # optional sigma used to randomly adjust counts
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-  center_weight: 5 # multiplier applied to distance from pressure that will center mean
+  center_weight: 0 # multiplier applied to distance from pressure that will center mean
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
@@ -38,9 +37,11 @@ linear:
   enabled: true # true to enable linear regression (including correlation and plotting)
   num_correlations:  # optional number of correlations to display for field in x_fields (null to display all)
   min_correlation: 0.2 # optional minimum correlation to display (default 0)
-  plot: true # true to enable plotting when enabled for both x and y fields
-  plot_quadratic: false # include quadratic regression in plots
-  save_plots: false # save plots
+  plot:
+    enabled: true # true to enable plotting when enabled for both x and y fields
+    violin: true # true for violin plot (ignores weights), false for linear regression
+    quadratic: false # include quadratic regression in plots (ignored if violin)
+    save: false # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field
   alpha: 1.0 # alpha for ElasticNet regression
@@ -125,7 +126,7 @@ fields:
     name: 95% Flow Limitation
   - key: AvgLR
     name: Average Leak Rate
-    x_field: false # TODO enable after collar experiment
+    x_field: true
     y_field: true
     multi_x_field: true
   - key: IFL
@@ -139,16 +140,16 @@ fields:
     y_field: true
   - key: Timestamp # numeric Date
     name: Date
-    plot: true
-    x_field: false # TODO enable after collar experiment
+    x_field: true
     multi_x_field: true
   - key: Pressure
-    x_field: false
+    plot: true
+    x_field: true
     multi_x_field: true
   - key: Collar
-    plot: true
-    x_field: true # TODO disable after collar experiment
-    multi_x_field: true # TODO disable after collar experiment
+    plot: false
+    x_field: false # TODO experiment with collar (disable other x fields)
+    multi_x_field: true # TODO experiment with collar
   - key: Usage
   - key: Sleep
   - key: REM

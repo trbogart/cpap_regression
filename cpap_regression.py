@@ -6,7 +6,9 @@ from itertools import islice
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import yaml
+from numpy.f2py.auxfuncs import isfunction_wrap
 from numpy.polynomial.polynomial import Polynomial
 from pandas import DatetimeIndex
 from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
@@ -576,34 +578,41 @@ class Regression:
 
     # correlations and
     def _linear_field(self, y_field: Field, x_field: Field) -> float:
-        config = self.config['linear']
+        plot_config = self.config['linear']['plot']
         x = self.df[x_field.key]
         y = self.df[y_field.key]
         correl = self._weighted_correlation(x, y, self.df['Weight'])
-        if y_field.plot and x_field.plot and config['plot']:
-            # noinspection PyTypeChecker
-            x_min: float = x.min()
-            # noinspection PyTypeChecker
-            x_max: float = x.max()
+        tags = []
+        if y_field.plot and x_field.plot and plot_config['enabled']:
+            if plot_config['violin']:
+                if self.config['weighted_by']['usage']: # TODO implement
+                    self._log('Violin plot currently not supported with weighted_by.usage')
+                    sys.exit(1)
 
-            polyline = np.linspace(x_min, x_max, 100)
+                tags.append('violin')
+                ifw = self.config['weighted_by']['frequency'] # using inverse frequency weighting?
+                sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart',
+                               density_norm='area' if ifw else 'count')
+            else:
+                plt.scatter(x, y)
+                x_min = x.min()
+                x_max = x.max()
+                polyline = np.linspace(x_min, x_max, 100)
+                # linear regression
+                poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
+                plt.plot(polyline, poly1(polyline), color='blue')
 
-            # linear regression
-            poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
-            plt.plot(polyline, poly1(polyline), color='blue')
+                # quadratic regression
+                if plot_config['quadratic']:
+                    poly2 = Polynomial.fit(x, y, 2, w=self.df['Weight'])
+                    c, b, a = poly2.convert().coef
 
-            # quadratic regression
-            if config['plot_quadratic']:
-                poly2 = Polynomial.fit(x, y, 2, w=self.df['Weight'])
-                c, b, a = poly2.convert().coef
+                    # plot minima or maxima of quadratic regression, if in domain
+                    x_extrema = -b / (2 * a)
+                    if x_min <= x_extrema <= x_max:
+                        plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
-                # plot minima or maxima of quadratic regression, if in domain
-                x_extrema = -b / (2 * a)
-                # noinspection PyUnresolvedReferences
-                if x_min <= x_extrema <= x_max:
-                    plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
-
-                plt.plot(polyline, poly2(polyline), color='red')
+                    plt.plot(polyline, poly2(polyline), color='red')
 
             weighted_by = self._weighted_by(include_unweighted=False)
             title_lines = [f'{y_field.title} vs. {x_field.title}']
@@ -611,13 +620,12 @@ class Regression:
                 title_lines.append(weighted_by)
             title_lines.append(f'r = {correl:.3f}')
 
-            plt.scatter(x, y)
             plt.xlabel(f'{x_field.name}')
             plt.ylabel(y_field.name)
             plt.title('\n'.join(title_lines))
             plt.tight_layout()
-            if config['save_plots']:
-                plt.savefig(self._plot_filename(y_field, x_field), bbox_inches='tight')
+            if plot_config['save']:
+                plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
             plt.show()
 
         return correl
@@ -659,21 +667,22 @@ class Regression:
             self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix=' -- ')
 
-    def _plot_filename(self, y_field: Field, x_field: Field):
+    def _plot_filename(self, y_field: Field, x_field: Field, tags: list[str]):
         y_field_name = y_field.key.lower().replace(' ', '_')
         x_field_name = x_field.key.lower().replace(' ', '_')
-        return f'{y_field_name}_{x_field_name}_{self._base_filename()}.png'
+        return f'{y_field_name}_{x_field_name}_{self._base_filename(tags)}.png'
 
     def _log_filename(self):
         return f'results_{self._base_filename()}.txt'
 
-    def _base_filename(self) -> str:
-        # noinspection PyStringConversionWithoutDunderMethod
-        s = [str(self.df['Date'].max())]
+    def _base_filename(self, tags: list[str]|None = None) -> str:
+        s = tags[:] if tags else []
         if self.config['weighted_by']['frequency']:
             s.append('freq')
         if self.config['weighted_by']['usage']:
             s.append('usage')
+        # noinspection PyStringConversionWithoutDunderMethod
+        s.append(str(self.df['Date'].max()))
         return '_'.join(s)
 
     @staticmethod
