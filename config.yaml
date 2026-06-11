@@ -11,7 +11,7 @@ filter:
   max_leak_rate: 1.5 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
-  min_sleep_efficiency: 0.7 # optional min ratio between Sleep and Usage
+  min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
   # TODO experiment with collar
   collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
@@ -40,7 +40,7 @@ correlation:
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
   violin: true # true for violin plot (separate from linear and quadratic if enabled)
-  linear: false # true to plot scatter plot and linear regression
+  linear: true # true to plot scatter plot and linear regression
   quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
   save: false # save plots
 elastic_net:
