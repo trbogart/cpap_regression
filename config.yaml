@@ -23,10 +23,10 @@ pressure_counts:
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
-  last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
+  last_pressure_boost: 2 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 0.5 # optional sigma used to randomly adjust counts (low value for tie-breaker, larger value for more randomization)
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-  center_weight: 5 # multiplier applied to distance from pressure that will center mean
+  center_weight:  # multiplier applied to distance from pressure that will center mean
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
