@@ -348,7 +348,7 @@ class Regression:
                 correl = self._weighted_correlation(df['Pressure'],
                                                     df['Timestamp'],
                                                     df['WeightIgnoringFrequency'])
-                self._log(f'{prefix}Correlation between Pressure and Date: {correl:.2f}')
+                self._log(f'{prefix}Correlation between Pressure and Date: {self._get_correlation_string(correl)}')
 
         print_summary(self.df)
 
@@ -560,7 +560,7 @@ class Regression:
         for i, field1 in enumerate(self.enabled_fields):
             for field2 in islice(self.enabled_fields, i):
                 correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key], self.df['Weight'])
-                if not min_correlation or abs(correlation) > min_correlation:
+                if not min_correlation or abs(correlation) >= min_correlation:
                     correlations.append((field1, field2, correlation))
         correlations.sort(key=lambda t: abs(t[2]), reverse=True)
 
@@ -568,9 +568,13 @@ class Regression:
             correlations = correlations[:num_correlations]
         self._print_correlation_summary(num_correlations=num_correlations, min_correlation=min_correlation)
         for field1, field2, correlation in correlations:
-            self._log(f'- {' / '.join(sorted([field1.name, field2.name]))}: {correlation:3f}')
+            self._log(
+                f'- {' / '.join(sorted([field1.name, field2.name]))}: {self._get_correlation_string(correlation)}')
 
     def _linear_quadratic(self):
+        num_correlations = self.config['correlation']['num_correlations']
+        min_correlation = self.config['correlation']['min_correlation']
+
         for x_field in self.x_fields:
             if len(self.df[x_field.key].unique()) < 2:
                 self._log(f'\nSkip {x_field.name}: only 1 value')
@@ -578,13 +582,17 @@ class Regression:
                 field_corr_and_r2_scores = [(y_field, self._linear_quadratic_field(y_field, x_field))
                                             for y_field in self.y_fields if x_field != y_field]
                 if self.config['correlation']['enabled']:
-                    correlations = [(y_field, corr) for y_field, (corr, _, _) in field_corr_and_r2_scores]
-                    num_correlations = self.config['correlation']['num_correlations']
-                    min_correlation = self.config['correlation']['min_correlation']
+                    fields_and_correlations = [(y_field, corr) for y_field, (corr, _, _) in field_corr_and_r2_scores]
+                    fields_and_correlations.sort(key=lambda x: abs(x[1]), reverse=True)
+
                     self._print_correlation_summary(field=x_field,
                                                     num_correlations=num_correlations,
                                                     min_correlation=min_correlation)
-                    self._print_field_weights(correlations, max_count=num_correlations, min_weight=min_correlation)
+                    if num_correlations:
+                        fields_and_correlations = fields_and_correlations[:num_correlations]
+                    for field, correlation in fields_and_correlations:
+                        if not min_correlation or abs(correlation) >= min_correlation:
+                            self._log(f'- {field.name}: {self._get_correlation_string(correlation)}')
 
                 if self.config['r2']['linear']:
                     r2_scores = [(y_field, r2_linear) for y_field, (_, r2_linear, _) in field_corr_and_r2_scores]
@@ -593,7 +601,9 @@ class Regression:
                     r2_scores = [(y_field, r2_quadratic) for y_field, (_, _, r2_quadratic) in field_corr_and_r2_scores]
                     self._print_r2('Quadratic', x_field, r2_scores)
 
-    def _print_correlation_summary(self, field: Field | None = None, num_correlations: int | None = None,
+    def _print_correlation_summary(self,
+                                   field: Field | None = None,
+                                   num_correlations: int | None = None,
                                    min_correlation: float | None = None):
         s = []
         if num_correlations:
@@ -642,14 +652,14 @@ class Regression:
         if max_count:
             fields_and_weights = fields_and_weights[:max_count]
         for field, weight in fields_and_weights:
-            if not min_weight or abs(weight) > min_weight:
+            if not min_weight or abs(weight) >= min_weight:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
     # return correlation, linear R2 score, and quadratic R2 score
     def _linear_quadratic_field(self, y_field: Field, x_field: Field) -> tuple[float, float, float]:
         x = self.df[x_field.key]
         y = self.df[y_field.key]
-        correl = self._weighted_correlation(x, y, self.df['Weight'])
+        r = self._weighted_correlation(x, y, self.df['Weight'])
 
         poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
         r2_linear = r2_score(y, poly1(x), sample_weight=self.df['Weight'])
@@ -664,7 +674,9 @@ class Regression:
                 title_lines = [f'{y_field.title} vs. {x_field.title}']
                 if weighted_by:
                     title_lines.append(weighted_by)
-                title_lines.append(f'r = {correl:.3f}, linear R² = {r2_linear:.3f}, quadratic R² = {r2_quadratic:.3f}')
+                title_lines.append(f'r = {self._get_correlation_string(r)}, '
+                                   f'linear R² = {r2_linear:.3f}, '
+                                   f'quadratic R² = {r2_quadratic:.3f}')
 
                 plt.xlabel(f'{x_field.name}')
                 plt.ylabel(y_field.name)
@@ -714,7 +726,7 @@ class Regression:
 
                 show_plot()
 
-        return correl, r2_linear, r2_quadratic
+        return r, r2_linear, r2_quadratic
 
     def _linear_partial_dependence(self):
         config = self.config['linear_partial_dependence']
@@ -773,7 +785,7 @@ class Regression:
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
         field_weights = [(self.multi_x_fields[i], weight) for i, weight in enumerate(weights)
-                         if abs(weight) > min_weight]
+                         if abs(weight) >= min_weight]
         if field_weights:
             self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix=' -- ')
@@ -812,6 +824,21 @@ class Regression:
 
         # Compute correlation
         return cov_xy / np.sqrt(cov_xx * cov_yy)
+
+    @staticmethod
+    def _get_correlation_string(r: float) -> str:
+        magnitude = abs(r)
+        if magnitude >= 0.8:
+            s = 'very strong'
+        elif magnitude >= 0.6:
+            s = 'strong'
+        elif magnitude >= 0.4:
+            s = 'moderate'
+        elif magnitude >= 0.2:
+            s = 'weak'
+        else:
+            s = 'very weak'
+        return f'{r:.2f} ({s})'
 
 
 if __name__ == '__main__':
