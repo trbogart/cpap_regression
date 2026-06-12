@@ -64,6 +64,9 @@ bayesian_ridge:
 ard:
   enabled: false # perform ARD Bayesian regression using multi_x_field
   min_weight: 0.2 # optional minimum ARD weight to print (default 0)
+linear_partial_dependence:
+  enabled: false
+  save: false
 # fields
 # - key: key in CSV
 # - name: optional display name (defaults to key)
@@ -162,7 +165,7 @@ fields:
   - key: Collar
     plot: false
     x_field: false # TODO experiment with collar (disable other x fields)
-    multi_x_field: true # TODO experiment with collar
+    multi_x_field: false # TODO experiment with collar
   - key: Usage
   - key: Sleep
   - key: REM

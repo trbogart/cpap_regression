@@ -11,7 +11,8 @@ import seaborn as sns
 import yaml
 from numpy.polynomial.polynomial import Polynomial
 from pandas import DatetimeIndex
-from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor
+from sklearn.inspection import PartialDependenceDisplay
+from sklearn.linear_model import ARDRegression, BayesianRidge, SGDRegressor, LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 
@@ -313,6 +314,9 @@ class Regression:
 
             # ARD Regression to regularize multi_x_fields
             self._ard()
+
+            # Linear partial dependence
+            self._linear_partial_dependence()
 
         if self.config['next_pressure']['enabled']:
             self._next_pressure()
@@ -711,6 +715,26 @@ class Regression:
                 show_plot()
 
         return correl, r2_linear, r2_quadratic
+
+    def _linear_partial_dependence(self):
+        config = self.config['linear_partial_dependence']
+        if config['enabled']:
+            for y_field in self.y_fields:
+                if y_field.plot:
+                    model = LinearRegression().fit(self.multi_x_scaled, self.df[y_field.key])
+                    fig, axes = plt.subplots(nrows=1, ncols=len(self.multi_x_fields))
+                    PartialDependenceDisplay.from_estimator(estimator=model,
+                                                            X=self.multi_x_scaled,
+                                                            features=list(range(len(self.multi_x_fields))),
+                                                            feature_names=[field.name for field in self.multi_x_fields],
+                                                            ax=axes,
+                                                            sample_weight=self.df['Weight'])
+                    fig.suptitle(y_field.title)
+                    plt.tight_layout()
+                    if config['save']:
+                        filename = f'pd_{y_field.key.replace(' ', '_').lower()}_{self._base_filename()}.png'
+                        plt.savefig(filename)
+                    plt.show()
 
     def _elastic_net(self):
         config = self.config['elastic_net']
