@@ -594,15 +594,14 @@ class Regression:
                         if not min_correlation or abs(correlation) >= min_correlation:
                             self._log(f'- {field.name}: {self._get_correlation_string(correlation)}')
 
+                r2_prefix = 'Adjusted ' if self.config['r2']['adjusted'] else ''
+
                 if self.config['r2']['linear']:
                     r2_scores = [(y_field, r2_linear) for y_field, (_, r2_linear, _) in field_corr_and_r2_scores]
-                    self._print_r2('Linear', x_field, r2_scores)
+                    self._print_r2(f'{r2_prefix}Linear', x_field, r2_scores)
                 if self.config['r2']['quadratic']:
                     r2_scores = [(y_field, r2_quadratic) for y_field, (_, _, r2_quadratic) in field_corr_and_r2_scores]
-                    if self.config['r2']['quadratic_adjusted']:
-                        regression_type = 'Adjusted Quadratic'
-                    else:
-                        regression_type = 'Quadratic'
+                    regression_type = f'{r2_prefix}Quadratic'
 
                     self._print_r2(regression_type, x_field, r2_scores)
 
@@ -660,6 +659,13 @@ class Regression:
             if not min_weight or abs(weight) >= min_weight:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
+    def _r2_score(self, y, y_pred, k: int) -> float:
+        r2 = r2_score(y, y_pred, sample_weight=self.df['Weight'])
+        if self.config['r2']['adjusted']:
+            n = len(self.df)
+            return 1 - (1 - r2) * (n - 1) / (n - k - 1)
+        return r2
+
     # return correlation, linear R2 score, and quadratic R2 score
     def _linear_quadratic_field(self, y_field: Field, x_field: Field) -> tuple[float, float, float]:
         x = self.df[x_field.key]
@@ -667,17 +673,10 @@ class Regression:
         r = self._weighted_correlation(x, y, self.df['Weight'])
 
         poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
-        r2_linear = r2_score(y, poly1(x), sample_weight=self.df['Weight'])
+        r2_linear = self._r2_score(y, poly1(x), 1)
 
         poly2 = Polynomial.fit(x, y, 2, w=self.df['Weight'])
-        r2_quadratic = r2_score(y, poly2(x), sample_weight=self.df['Weight'])
-        if self.config['r2']['quadratic_adjusted']:
-            n = len(x)
-            k = 2 # 2 independent variables (x and x²)
-            r2_quadratic = 1 - (1 - r2_quadratic) * (n - 1) / (n - k - 1)
-            quadratic_r2_string = 'adjusted quadratic R²'
-        else:
-            quadratic_r2_string = 'quadratic R²'
+        r2_quadratic =  self._r2_score(y, poly2(x), 1)
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
@@ -686,8 +685,9 @@ class Regression:
                 title_lines = [f'{y_field.title} vs. {x_field.title}']
                 if weighted_by:
                     title_lines.append(weighted_by)
-                title_lines.append(f'linear R² = {r2_linear:.3f}, '
-                                   f'{quadratic_r2_string} = {r2_quadratic:.3f}')
+                r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
+                title_lines.append(f'{r2_prefix}linear R² = {r2_linear:.3f}, '
+                                   f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
 
                 plt.xlabel(f'{x_field.name}')
                 plt.ylabel(y_field.name)

@@ -42,7 +42,7 @@ correlation:
 r2:
   linear: true # true to display linear R² scores
   quadratic: true # true to display quadratic R² scores
-  quadratic_adjusted: true # true to use adjusted R² for quadratic R²
+  adjusted: true # true to use adjusted R²
   num_scores: 5 # optional number of r2 scores to display for field in x_fields (null to display all)
   min_score:  # optional minimum correlation to display (default 0)
 plot:
