@@ -5,7 +5,7 @@ stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 filter:
-  max_days: 30 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 35 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.2 # optional min Pressure
@@ -73,45 +73,90 @@ linear_partial_dependence:
 # - multi_x_field: true if used as an x field for regularization (e.g. ElasticNet)
 fields:
   - key: Comb FL
-    name: Combined FL
+    name: Combined FL # % of breath
     y_field: true
     plot: true
+    # Combined FL Percentage - https://airwaylab.app/glossary/combined-fl-percentage
+    # The percentage of breaths classified as flow-limited by either NED (above 34%) or Flatness Index (above 0.85).
+    # Combines both detection methods for a more complete picture.
+    # Good < 20%, Borderline 20-40%, Elevated > 40%
   - key: FLS
     name: Flow Limitation Score
     y_field: true
+    plot: true
+    # Flow Limitation Score - https://airwaylab.app/glossary/fl-score
+    # A population-level metric measuring how much tidal volume variance is concentrated at flow peaks,
+    # indicating flat-topped (flow-limited) breathing. Reported as a percentage.
+    # Good < 30%, Borderline 30-50%, Elevated > 50%
   - key: GI
     name: Glasgow Index
     y_field: true
     plot: true
+    # Glasgow Index - https://airwaylab.app/glossary/glasgow-index
+    # A composite breath-shape scoring system that evaluates 9 flow limitation characteristics per breath on a 0-9 scale.
+    # Lower scores indicate better therapy.
+    # Good < 1.0, Borderline 1.0-2.0, Elevated > 2.0
   - key: GI Sk
     name: GI Skew
     y_field: true
+    # Glasgow Index - Skew
+    # Measures the asymmetry of the inspiratory flow curve. A normal breath rises and falls symmetrically.
+    # Flow-limited breaths often peak early and trail off — high skew indicates the airway is narrowing during inspiration.
   - key: GI Sp
     name: GI Spike
     y_field: true
+    # Glasgow Index - Spike
+    # Detects sharp transient peaks at the beginning of inspiration. A brief spike followed by reduced flow shows a
+    # pattern where the waveform briefly opens then narrows.
   - key: GI FT
     name: GI Flat Top
     y_field: true
+    # Glasgow Index - Flat Top
+    # Identifies inspiratory flow plateaus where flow reaches a ceiling and cannot increase despite continued
+    # inspiratory effort. This is the classic "flow limitation" pattern seen in clinical polysomnography.
   - key: GI TH
     name: GI Top Heavy
     y_field: true
+    # Glasgow Index - Top Heavy
+    # Quantifies how much of the breath's tidal volume is delivered in the first half of inspiration versus the second
+    # half. Top-heavy breaths indicate early flow limitation onset. (Computed but excluded from overall score.)
   - key: GI MP
     name: GI Multi Peak
     y_field: true
+    # Glasgow Index - Multi Peak
+    # Detects oscillatory flow patterns with multiple peaks during a single inspiration.
+    # Multi-peak patterns show oscillation in the flow waveform, often seen with moderate flow limitation.
   - key: GI NP
     name: GI No Pause
     y_field: true
+    # Glasgow Index - No Pause
+    # Assesses whether there is an adequate pause between expiration and the next inspiration.
+    # Absent pauses are associated with higher respiratory rate, often a compensatory response to flow limitation.
   - key: GI IR
     name: GI Inspiration Rate
     y_field: true
+    # Glasgow Index - Inspiration Rate
+    # Evaluates the peak inspiratory flow rate relative to the breath population.
+    # Abnormally high rates may reflect higher respiratory rate.
   - key: GI MB
     name: GI Multi Breath
     y_field: true
+    # Glasgow Index - Multi-Breath
+    # Detects sequences of breaths with progressively worsening flow limitation characteristics,
+    # showing a crescendo pattern in the waveform.
   - key: GI VA
     name: GI Var Amp
     y_field: true
+    # Glasgow Index - Variable Amplitude
+    # Measures breath-to-breath variability in tidal volume. High variability indicates unstable ventilation,
+    # which can accompany cycling between obstruction and recovery.
   - key: NED Mean
     y_field: true
+    plot: true
+    # NED Mean (Negative Effort Dependence) - https://airwaylab.app/glossary/ned-mean
+    # A per-breath measure of flow limitation calculated as the ratio of peak inspiratory flow to mid-inspiratory flow.
+    # Higher values indicate more airway narrowing during inhalation.
+    # Good < 15%, Borderline 15-25%, Elevated > 25%
   - key: H1 NED Mean
     y_field: false
   - key: H2 NED Mean
@@ -121,35 +166,59 @@ fields:
   - key: NED RDI
     y_field: true
     plot: true
+    # RDI (Respiratory Disturbance Index) - https://airwaylab.app/glossary/rdi
+    # The total number of respiratory events per hour, including apneas, hypopneas, and RERAs.
+    # A more comprehensive measure than AHI alone.
+    # AirwayLab estimates RDI by combining detected RERAs (NED engine) with detected hypopneas (flow amplitude drops
+    # sustained for 10+ seconds). Apneas cannot be reliably detected from flow data alone, so this estimate is a
+    # conservative lower bound. It is most accurate when apneas are rare, as is typical in UARS.
+    # Good < 5/h4, Borderline 5-15/hr, Elevated >15/hr
   - key: BOI
     name: Brief Obstruction Index
     y_field: true
     plot: true
   - key: AHI
     y_field: true
-  - key: RERA
-    y_field: true
+    # AHI (Apnea-Hypopnea Index) - https://airwaylab.app/glossary/ahi
+    # The number of apneas and hypopneas per hour of sleep. The most widely used measure of sleep apnea severity,
+    # but it misses flow limitation and RERAs.
   - key: RDI # calculated: AHI + RERA
     y_field: true
+    # RERA (Respiratory Effort-Related Arousal) - https://airwaylab.app/glossary/rera
+    # A sequence of flow-limited breaths that terminates in a cortical arousal without meeting criteria for apnea or
+    # hypopnea. A hallmark of Upper Airway Resistance Syndrome.
+    # Good < 5/hr, Borderline 5-10/h4, Elevated > 10/hr
   - key: CAI
     y_field: true
     plot: true
+    # Central Apnea Index (AS11)
   - key: 95%FL
     name: 95% Flow Limitation
+    # 95%ile Flow Limitation (AS11)
   - key: AvgLR
     name: Average Leak Rate
     x_field: false
     y_field: true
     multi_x_field: true
+    # Average leak rage (AS11)
   - key: IFL
     title: IFL Symptom Risk %
     y_field: true
+    # Flow Limitation (Inspiratory Flow Limitation) - https://airwaylab.app/glossary/flow-limitation
+    # Partial narrowing of the upper airway during inspiration that restricts airflow without complete collapse.
+    # The core phenomenon that AirwayLab analyses.
   - key: Period
     name: Periodicity
     y_field: true
+    # Periodicity Index - https://airwaylab.app/glossary/periodicity-index
+    # Detects cyclical breathing patterns with 30-100 second cycles using FFT spectral analysis.
+    # Elevated values suggest periodic breathing or Cheyne-Stokes respiration.
+    # Normal < 20, Borderline 20-40, Elevated > 40
   - key: Regul
     name: Regularity
     y_field: true
+    # Sample Entropy (Regularity Score) - https://airwaylab.app/glossary/sample-entropy
+    # Good < 30, Borderline 30-50, Overly Regular > 50
   - key: Timestamp # numeric Date
     name: Date
     x_field: false
@@ -162,11 +231,6 @@ fields:
     plot: false
     x_field: false # TODO experiment with collar (disable other x fields)
     multi_x_field: false # TODO experiment with collar
-  - key: Usage
-  - key: Sleep
-  - key: REM
-  - key: Deep
-  - key: Efficiency # Calculated: Usage / Sleep
-    name: Sleep Efficiency
+
 
 
