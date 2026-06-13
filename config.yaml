@@ -26,7 +26,7 @@ next_pressure:
   last_pressure_boost: 2 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 0.5 # optional sigma used to randomly adjust counts (low value for tie-breaker, larger value for more randomization)
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-  center_weight:  # multiplier applied to distance from pressure that will center mean
+  center_weight: 5 # multiplier applied to distance from pressure that will center mean
   verbose: true
 weighted_by:
   frequency: false # true to weight by inverse frequency for pressure
@@ -42,6 +42,7 @@ correlation:
 r2:
   linear: true # true to display linear R² scores
   quadratic: true # true to display quadratic R² scores
+  quadratic_adjusted: true # true to use adjusted R² for quadratic R²
   num_scores: 5 # optional number of r2 scores to display for field in x_fields (null to display all)
   min_score:  # optional minimum correlation to display (default 0)
 plot:
