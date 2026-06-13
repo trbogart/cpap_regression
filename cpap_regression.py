@@ -674,8 +674,7 @@ class Regression:
                 title_lines = [f'{y_field.title} vs. {x_field.title}']
                 if weighted_by:
                     title_lines.append(weighted_by)
-                title_lines.append(f'r = {self._get_correlation_string(r)}, '
-                                   f'linear R² = {r2_linear:.3f}, '
+                title_lines.append(f'linear R² = {r2_linear:.3f}, '
                                    f'quadratic R² = {r2_quadratic:.3f}')
 
                 plt.xlabel(f'{x_field.name}')
