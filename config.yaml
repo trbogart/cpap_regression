@@ -201,6 +201,13 @@ fields:
     y_field: true
     multi_x_field: true
     # Average leak rage (AS11)
+  - key: FI Mean
+    name: Flatness Index Mean
+    y_field: true
+    # Flatness Index Mean - https://airwaylab.app/glossary/flatness-index
+    # The ratio of mean inspiratory flow to peak inspiratory flow per breath. Values of 0.85 or above indicate
+    # significant flow limitation with a flat-topped breath pattern.
+    # Normal < 0.75, Borderline 0.75-0.85, Flow-Limited > 0.85
   - key: IFL
     title: IFL Symptom Risk %
     y_field: true
