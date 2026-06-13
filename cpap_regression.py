@@ -62,11 +62,11 @@ class Regression:
         self.multi_x_fields = [field for field in self.enabled_fields if field.multi_x_field]
         self.multi_y_fields = [field for field in self.enabled_fields if field.multi_y_field]
 
-        columns = {'Weight', 'Date', 'Pressure'}
+        columns = {'Date', 'Pressure'}
         filter_config = self.config['filter']
         if 'max_leak_rate' in filter_config:
             columns.add('AvgLR')
-        if 'min_usage' in filter_config or self.config['weighted_by']['usage']:
+        if 'min_usage' in filter_config:
             columns.add('Usage')
         if 'min_sleep' in filter_config:
             columns.add('Sleep')
@@ -137,15 +137,11 @@ class Regression:
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
 
-        # Weight field is 1 by default (mostly intended for manual exclusion, but non-zero weights also work)
-        self.df['Weight'] = self.df['Weight'].fillna(1)
-
         # Collar field is 0 by default
         if 'Collar' in columns:
             self.df['Collar'] = self.df['Collar'].fillna(0)
 
-        # drop invalid data (including 0 weight, which is possible with manual weighting)
-        self.df.drop(self.df[self.df['Weight'] == 0].index, inplace=True)
+        # drop invalid data
         self.df.dropna(inplace=True)
         count = self._print_dropped(count, 'with invalid data')
 
@@ -257,14 +253,6 @@ class Regression:
         self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
-        # adjust weights based on config
-        if self.config['weighted_by']['usage']:
-            self.df['Weight'] *= self.df['Usage']
-        self.df['WeightIgnoringFrequency'] = self.df['Weight']
-
-        if self.config['weighted_by']['frequency']:
-            pressure_counts = self.df['Pressure'].value_counts()
-            self.df['Weight'] /= [pressure_counts[pressure] for pressure in self.df['Pressure']]
 
         self.dropped_date: DatetimeIndex | None = None
         self.dropped_pressure: float | None = None
@@ -281,7 +269,7 @@ class Regression:
 
     def run(self):
         # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) - {self._weighted_by()}')
+        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%)')
 
         if self.config['pressure_counts']['enabled']:
             self._pressure_counts()
@@ -336,18 +324,14 @@ class Regression:
                 dates_str = dates
 
             total_usage = data_for_pressure['Usage'].sum()
-            total_weight = data_for_pressure['Weight'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs, '
-                      f'{total_weight:.2g} total weight): {', '.join(dates_str)}')
+            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs): {', '.join(dates_str)}')
 
         def print_summary(df, prefix: str = ''):
             avg_pressure = df['Pressure'].mean()
             self._log(f'{prefix}Mean Pressure: {self._mean_pressure_string(avg_pressure)}')
 
             if self.config['pressure_counts']['pressure_date_correlation']:
-                correl = self._weighted_correlation(df['Pressure'],
-                                                    df['Timestamp'],
-                                                    df['WeightIgnoringFrequency'])
+                correl = np.corrcoef(df['Pressure'], df['Timestamp'])[0, 1]
                 self._log(f'{prefix}Correlation between Pressure and Date: {self._get_correlation_string(correl)}')
 
         print_summary(self.df)
@@ -383,21 +367,11 @@ class Regression:
 
         df = self.df_tomorrow
 
-        if self.config['weighted_by']['usage']:
-            # weight by usage (same scale as pressure count)
-            avg_usage = df['Usage'].mean()
-            pressure_weights = {
-                pressure: df[df['Pressure'] == pressure]['Usage'].sum() / avg_usage for pressure in
-                self.valid_pressures
-            }
-        else:
-            # weight by pressure count
-            pressure_weights = df['Pressure'].value_counts()
-
+        pressure_counts = df['Pressure'].value_counts()
         extreme_pressures = {self.min_pressure, self.max_pressure}
 
         def is_zero_extreme(pr: float) -> bool:
-            return pr in extreme_pressures and pressure_weights.get(pr, 0) == 0
+            return pr in extreme_pressures and pressure_counts.get(pr, 0) == 0
 
         # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
         # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
@@ -423,9 +397,9 @@ class Regression:
         random_sigma = self.config['next_pressure']['random_sigma']
 
         for pressure in self.valid_pressures:
-            pressure_weight = pressure_weights.get(pressure, 0)
+            pressure_count = pressure_counts.get(pressure, 0)
 
-            if pressure_weight == 0 and pressure in extreme_pressures:
+            if pressure_count == 0 and pressure in extreme_pressures:
                 # always select extreme pressure with zero count
                 pressure_boost = float('inf')
             elif last_pressure_boost and pressure == self.last_pressure:
@@ -447,14 +421,13 @@ class Regression:
             else:
                 random_adjustment = 0
 
-            score = pressure_weight + random_adjustment + center_distance - pressure_boost
-            if self.config['weighted_by']['usage']:
-                weight_str = f'{pressure_weight:5.2f} weight'
-            else:
-                weight_str = f'{pressure_weight:2d} count'
+            score = pressure_count + random_adjustment + center_distance - pressure_boost
             if self.config['next_pressure']['verbose']:
-                self._log(f'- {pressure:3.1f}: {score:5.2f}'
-                          f' = {weight_str} {random_adjustment:+.2f} random {center_distance:+g} center {-pressure_boost:+g} boost')
+                self._log(f'- {pressure:3.1f}: {score:5.2f} = '
+                          f'{pressure_count:2d} count '
+                          f'{random_adjustment:+.2f} random '
+                          f'{center_distance:+g} center '
+                          f'{-pressure_boost:+g} boost')
             if score < best_score:
                 next_pressure = pressure
                 best_score = score
@@ -559,7 +532,7 @@ class Regression:
 
         for i, field1 in enumerate(self.enabled_fields):
             for field2 in islice(self.enabled_fields, i):
-                correlation = self._weighted_correlation(self.df[field1.key], self.df[field2.key], self.df['Weight'])
+                correlation = np.corrcoef(self.df[field1.key], self.df[field2.key])[0, 1]
                 if not min_correlation or abs(correlation) >= min_correlation:
                     correlations.append((field1, field2, correlation))
         correlations.sort(key=lambda t: abs(t[2]), reverse=True)
@@ -638,18 +611,6 @@ class Regression:
         self._log(f'\n{' '.join(s)}')
         self._print_field_weights(r2_scores, max_count=num_scores, min_weight=min_score)
 
-    def _weighted_by(self, include_unweighted: bool = True) -> str | None:
-        config = self.config['weighted_by']
-        if config['frequency']:
-            if config['usage']:
-                return 'Weighted by inverse frequency and usage'
-            return 'Weighted by inverse frequency'
-        if config['usage']:
-            return 'Weighted by usage'
-        if include_unweighted:
-            return 'Not weighted'
-        return None
-
     def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
                              max_count: int | None = None, min_weight: float | None = 0):
         fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
@@ -660,7 +621,7 @@ class Regression:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
 
     def _r2_score(self, y, y_pred, k: int) -> float:
-        r2 = r2_score(y, y_pred, sample_weight=self.df['Weight'])
+        r2 = r2_score(y, y_pred)
         if self.config['r2']['adjusted']:
             n = len(self.df)
             return 1 - (1 - r2) * (n - 1) / (n - k - 1)
@@ -670,21 +631,19 @@ class Regression:
     def _linear_quadratic_field(self, y_field: Field, x_field: Field) -> tuple[float, float, float]:
         x = self.df[x_field.key]
         y = self.df[y_field.key]
-        r = self._weighted_correlation(x, y, self.df['Weight'])
 
-        poly1 = Polynomial.fit(x, y, 1, w=self.df['Weight'])
+        r = np.corrcoef(x, y)[0, 1]
+
+        poly1 = Polynomial.fit(x, y, 1)
         r2_linear = self._r2_score(y, poly1(x), 1)
 
-        poly2 = Polynomial.fit(x, y, 2, w=self.df['Weight'])
+        poly2 = Polynomial.fit(x, y, 2)
         r2_quadratic =  self._r2_score(y, poly2(x), 1)
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
             def show_plot(tags: list[str] | None = None):
-                weighted_by = self._weighted_by(include_unweighted=False)
                 title_lines = [f'{y_field.title} vs. {x_field.title}']
-                if weighted_by:
-                    title_lines.append(weighted_by)
                 r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
                 title_lines.append(f'{r2_prefix}linear R² = {r2_linear:.3f}, '
                                    f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
@@ -698,20 +657,10 @@ class Regression:
                 plt.show()
 
             if plot_config['violin']:
-                if self.config['weighted_by']['usage']:
-                    self._log('Violin plot currently not supported with weighted_by.usage')
-                    sys.exit(1)
-
-                ifw = self.config['weighted_by']['frequency']  # using inverse frequency weighting?
-                sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart',
-                               density_norm='area' if ifw else 'count')
+                sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart', density_norm='count')
                 show_plot(tags=['violin'])
 
             if plot_config['box']:
-                if self.config['weighted_by']['usage'] or self.config['weighted_by']['frequency']:
-                    self._log('Box plot currently not supported with weighted_by')
-                    sys.exit(1)
-
                 sns.boxplot(data=self.df, x=x_field.key, y=y_field.key)
                 show_plot(tags=['box'])
 
@@ -750,8 +699,7 @@ class Regression:
                                                             X=self.multi_x_scaled,
                                                             features=list(range(len(self.multi_x_fields))),
                                                             feature_names=[field.name for field in self.multi_x_fields],
-                                                            ax=axes,
-                                                            sample_weight=self.df['Weight'])
+                                                            ax=axes)
                     fig.suptitle(y_field.title)
                     plt.tight_layout()
                     if config['save']:
@@ -768,7 +716,7 @@ class Regression:
                 model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
                                      l1_ratio=config['l1_ratio'], fit_intercept=True,
                                      random_state=config['seed'])
-                model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
+                model.fit(self.multi_x_scaled, self.df[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_)
 
     def _bayesian_ridge(self):
@@ -778,7 +726,7 @@ class Regression:
             self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
             for y_field in self.multi_y_fields:
                 model = BayesianRidge()
-                model.fit(self.multi_x_scaled, self.df[y_field.key], sample_weight=self.df['Weight'])
+                model.fit(self.multi_x_scaled, self.df[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _ard(self):
@@ -787,11 +735,8 @@ class Regression:
             min_weight = config['min_weight'] if config['min_weight'] else 0
             self._log(f'\nARD weights with magnitude > {min_weight}:')
             for y_field in self.multi_y_fields:
-                weights_sqrt = np.sqrt(np.array(self.df['Weight']))
-                X_weighted = self.multi_x_scaled * weights_sqrt[:, np.newaxis]
-                y_weighted = self.df[y_field.key] * weights_sqrt
                 model = ARDRegression()
-                model.fit(X_weighted, y_weighted)
+                model.fit(self.multi_x_scaled, self.df[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
@@ -813,28 +758,9 @@ class Regression:
         tags = self.tags[:]
         if extra_tags:
             tags.extend(extra_tags)
-        if self.config['weighted_by']['frequency']:
-            tags.append('freq')
-        if self.config['weighted_by']['usage']:
-            tags.append('usage')
         # noinspection PyStringConversionWithoutDunderMethod
         tags.append(str(self.df['Date'].max()))
         return '_'.join(tags)
-
-    @staticmethod
-    def _weighted_correlation(x, y, weights) -> float:
-        """Calculates the weighted Pearson correlation coefficient."""
-        # Compute weighted means
-        mean_x = np.average(x, weights=weights)
-        mean_y = np.average(y, weights=weights)
-
-        # Compute weighted covariances
-        cov_xx = np.average((x - mean_x) ** 2, weights=weights)
-        cov_yy = np.average((y - mean_y) ** 2, weights=weights)
-        cov_xy = np.average((x - mean_x) * (y - mean_y), weights=weights)
-
-        # Compute correlation
-        return cov_xy / np.sqrt(cov_xx * cov_yy)
 
     @staticmethod
     def _get_correlation_string(r: float) -> str:

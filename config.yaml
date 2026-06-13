@@ -28,9 +28,6 @@ next_pressure:
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
   center_weight: 5 # multiplier applied to distance from pressure that will center mean
   verbose: true
-weighted_by:
-  frequency: false # true to weight by inverse frequency for pressure
-  usage: false # true to weight by usage
 all_correlations:
   enabled: false # true to run correlations between all enabled fields
   num_correlations: # optional number of correlations to display between all fields (null to display all)
