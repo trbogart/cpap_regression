@@ -5,12 +5,12 @@ stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 filter:
-  max_days: 35 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 32 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.2 # optional min Pressure
   max_pressure: 7.8 # optional max Pressure
-  max_leak_rate: 1.5 # optional max AvgLR
+  max_leak_rate: 1.8 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
   min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
@@ -19,14 +19,14 @@ filter:
 pressure_transform: # use to combine pressure with another pressure (applied before filters)
 pressure_counts:
   enabled: true # true to show a breakdown of dates for each pressure
-  max_dates: 5 # optional maximum number of dates displayed for each pressure
+  max_dates: 7 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 2 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 0.5 # optional sigma used to randomly adjust counts (low value for tie-breaker, larger value for more randomization)
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-  center_weight: 5 # multiplier applied to distance from pressure that will center mean
+  center_weight:  # multiplier applied to distance from pressure that will center mean
   verbose: true
 all_correlations:
   enabled: false # true to run correlations between all enabled fields
@@ -40,14 +40,15 @@ r2:
   linear: true # true to display linear R² scores
   quadratic: true # true to display quadratic R² scores
   adjusted: true # true to use adjusted R²
-  num_scores: 5 # optional number of r2 scores to display for field in x_fields (null to display all)
-  min_score:  # optional minimum correlation to display (default 0)
+  num_scores:  # optional number of R² scores to display for field in x_fields (null to display all)
+  min_score: 0.1 # optional minimum correlation to display (default 0)
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
   violin: false # true for violin plot
   box: true # true for box plot
   linear: false # true to plot scatter plot and linear regression
   quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
+  min_r2: 0.1 # optional min R² score (either linear or quadratic) to display graphs
   save: false # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field
@@ -74,8 +75,7 @@ linear_partial_dependence:
 fields:
   - key: Comb FL
     name: Combined FL # % of breath
-    y_field: true
-    plot: true
+    y_field: false # excellent, no need to track
     # Combined FL Percentage - https://airwaylab.app/glossary/combined-fl-percentage
     # The percentage of breaths classified as flow-limited by either NED (above 34%) or Flatness Index (above 0.85).
     # Combines both detection methods for a more complete picture.
@@ -98,19 +98,19 @@ fields:
     # Good < 1.0, Borderline 1.0-2.0, Elevated > 2.0
   - key: GI Sk
     name: GI Skew
-    y_field: true
+    y_field: false # excellent, no need to track
     # Glasgow Index - Skew
     # Measures the asymmetry of the inspiratory flow curve. A normal breath rises and falls symmetrically.
     # Flow-limited breaths often peak early and trail off — high skew indicates the airway is narrowing during inspiration.
   - key: GI Sp
     name: GI Spike
-    y_field: true
+    y_field: false # excellent, no need to track
     # Glasgow Index - Spike
     # Detects sharp transient peaks at the beginning of inspiration. A brief spike followed by reduced flow shows a
     # pattern where the waveform briefly opens then narrows.
   - key: GI FT
     name: GI Flat Top
-    y_field: true
+    y_field: false # excellent, no need to track
     # Glasgow Index - Flat Top
     # Identifies inspiratory flow plateaus where flow reaches a ceiling and cannot increase despite continued
     # inspiratory effort. This is the classic "flow limitation" pattern seen in clinical polysomnography.
@@ -122,7 +122,7 @@ fields:
     # half. Top-heavy breaths indicate early flow limitation onset. (Computed but excluded from overall score.)
   - key: GI MP
     name: GI Multi Peak
-    y_field: true
+    y_field: false # excellent, no need to track
     # Glasgow Index - Multi Peak
     # Detects oscillatory flow patterns with multiple peaks during a single inspiration.
     # Multi-peak patterns show oscillation in the flow waveform, often seen with moderate flow limitation.
@@ -134,13 +134,13 @@ fields:
     # Absent pauses are associated with higher respiratory rate, often a compensatory response to flow limitation.
   - key: GI IR
     name: GI Inspiration Rate
-    y_field: true
+    y_field: false # excellent, no need to track
     # Glasgow Index - Inspiration Rate
     # Evaluates the peak inspiratory flow rate relative to the breath population.
     # Abnormally high rates may reflect higher respiratory rate.
   - key: GI MB
     name: GI Multi Breath
-    y_field: true
+    y_field: false # excellent, no need to track
     # Glasgow Index - Multi-Breath
     # Detects sequences of breaths with progressively worsening flow limitation characteristics,
     # showing a crescendo pattern in the waveform.
@@ -151,8 +151,7 @@ fields:
     # Measures breath-to-breath variability in tidal volume. High variability indicates unstable ventilation,
     # which can accompany cycling between obstruction and recovery.
   - key: NED Mean
-    y_field: true
-    plot: true
+    y_field: false # excellent, no need to track
     # NED Mean (Negative Effort Dependence) - https://airwaylab.app/glossary/ned-mean
     # A per-breath measure of flow limitation calculated as the ratio of peak inspiratory flow to mid-inspiratory flow.
     # Higher values indicate more airway narrowing during inhalation.
@@ -200,6 +199,7 @@ fields:
     x_field: false
     y_field: true
     multi_x_field: true
+    plot: true
     # Average leak rage (AS11)
   - key: FI Mean
     name: Flatness Index Mean
@@ -211,12 +211,14 @@ fields:
   - key: IFL
     title: IFL Symptom Risk %
     y_field: true
+    plot: true
     # Flow Limitation (Inspiratory Flow Limitation) - https://airwaylab.app/glossary/flow-limitation
     # Partial narrowing of the upper airway during inspiration that restricts airflow without complete collapse.
     # The core phenomenon that AirwayLab analyses.
   - key: Period
     name: Periodicity
     y_field: true
+    plot: true
     # Periodicity Index - https://airwaylab.app/glossary/periodicity-index
     # Detects cyclical breathing patterns with 30-100 second cycles using FFT spectral analysis.
     # Elevated values suggest periodic breathing or Cheyne-Stokes respiration.
@@ -224,6 +226,7 @@ fields:
   - key: Regul
     name: Regularity
     y_field: true
+    plot: true
     # Sample Entropy (Regularity Score) - https://airwaylab.app/glossary/sample-entropy
     # Good < 30, Borderline 30-50, Overly Regular > 50
   - key: Timestamp # numeric Date

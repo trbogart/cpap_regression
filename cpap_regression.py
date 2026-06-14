@@ -604,16 +604,20 @@ class Regression:
         if num_scores:
             s.append(f'Top {num_scores}')
         s.append(regression_type)
-        s.append(f'R² scores for {field.name}')
+        s.append(f'R² scores')
         if min_score:
-            s.append(f'with magnitude > {min_score}')
+            s.append(f'> {min_score}')
+            s.append(f'for {field.name}')
 
         self._log(f'\n{' '.join(s)}')
-        self._print_field_weights(r2_scores, max_count=num_scores, min_weight=min_score)
+        self._print_field_weights(r2_scores, max_count=num_scores, min_weight=min_score, sort_by_magnitude = False)
 
     def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
-                             max_count: int | None = None, min_weight: float | None = 0):
-        fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
+                             max_count: int | None = None, min_weight: float | None = 0, sort_by_magnitude: bool = True):
+        if sort_by_magnitude:
+            fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
+        else:
+            fields_and_weights.sort(key=lambda x: x[1], reverse=True)
         if max_count:
             fields_and_weights = fields_and_weights[:max_count]
         for field, weight in fields_and_weights:
@@ -642,49 +646,50 @@ class Regression:
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
-            def show_plot(tags: list[str] | None = None):
-                title_lines = [f'{y_field.title} vs. {x_field.title}']
-                r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
-                title_lines.append(f'{r2_prefix}linear R² = {r2_linear:.3f}, '
-                                   f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
+            if not plot_config['min_r2'] or r2_linear >= plot_config['min_r2'] or r2_quadratic >= plot_config['min_r2']:
+                def show_plot(tags: list[str] | None = None):
+                    title_lines = [f'{y_field.title} vs. {x_field.title}']
+                    r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
+                    title_lines.append(f'{r2_prefix}linear R² = {r2_linear:.3f}, '
+                                       f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
 
-                plt.xlabel(f'{x_field.name}')
-                plt.ylabel(y_field.name)
-                plt.title('\n'.join(title_lines))
-                plt.tight_layout()
-                if plot_config['save']:
-                    plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
-                plt.show()
+                    plt.xlabel(f'{x_field.name}')
+                    plt.ylabel(y_field.name)
+                    plt.title('\n'.join(title_lines))
+                    plt.tight_layout()
+                    if plot_config['save']:
+                        plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
+                    plt.show()
 
-            if plot_config['violin']:
-                sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart', density_norm='count')
-                show_plot(tags=['violin'])
+                if plot_config['violin']:
+                    sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart', density_norm='count')
+                    show_plot(tags=['violin'])
 
-            if plot_config['box']:
-                sns.boxplot(data=self.df, x=x_field.key, y=y_field.key)
-                show_plot(tags=['box'])
+                if plot_config['box']:
+                    sns.boxplot(data=self.df, x=x_field.key, y=y_field.key)
+                    show_plot(tags=['box'])
 
-            if plot_config['linear'] or plot_config['quadratic']:
-                plt.scatter(x, y)
+                if plot_config['linear'] or plot_config['quadratic']:
+                    plt.scatter(x, y)
 
-                polyline = np.linspace(x.min(), x.max(), 100)
-                if plot_config['linear']:
-                    # linear regression
-                    plt.plot(polyline, poly1(polyline), color='blue')
+                    polyline = np.linspace(x.min(), x.max(), 100)
+                    if plot_config['linear']:
+                        # linear regression
+                        plt.plot(polyline, poly1(polyline), color='blue')
 
-                # quadratic regression
-                if plot_config['quadratic']:
-                    c, b, a = poly2.convert().coef
+                    # quadratic regression
+                    if plot_config['quadratic']:
+                        c, b, a = poly2.convert().coef
 
-                    # plot minima or maxima of quadratic regression, if in domain
-                    x_extrema = -b / (2 * a)
-                    # noinspection PyUnresolvedReferences
-                    if x.min() <= x_extrema <= x.max():
-                        plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
+                        # plot minima or maxima of quadratic regression, if in domain
+                        x_extrema = -b / (2 * a)
+                        # noinspection PyUnresolvedReferences
+                        if x.min() <= x_extrema <= x.max():
+                            plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
 
-                    plt.plot(polyline, poly2(polyline), color='red')
+                        plt.plot(polyline, poly2(polyline), color='red')
 
-                show_plot()
+                    show_plot()
 
         return r, r2_linear, r2_quadratic
 
