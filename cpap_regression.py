@@ -323,8 +323,7 @@ class Regression:
             else:
                 dates_str = dates
 
-            total_usage = data_for_pressure['Usage'].sum()
-            self._log(f'- {pressure:.1f} ({len(dates)} count, {total_usage:.1f} hrs): {', '.join(dates_str)}')
+            self._log(f'- {pressure:.1f} ({len(dates)} count): {', '.join(dates_str)}')
 
         def print_summary(df, prefix: str = ''):
             avg_pressure = df['Pressure'].mean()
