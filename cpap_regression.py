@@ -157,8 +157,6 @@ class Regression:
                     self._log(f"Config 'pressure_transform[{pressure:.1f}]' is not used")
             self.df['Pressure'] = self.df['Pressure'].replace(pressure_transform)
 
-        # get last pressure before config filtering so next pressure logic will work correctly
-        self.last_pressure: float = self.df['Pressure'].iloc[-1]
 
         # convert time fields from H:MM to float hours
         if 'Usage' in columns:
@@ -180,6 +178,9 @@ class Regression:
         if calculate_ned_mean_split:
             self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
 
+        # get last pressure before config filtering so next pressure logic will work correctly
+        self.last_pressure: float = self.df['Pressure'].iloc[-1]
+
         # filter by config
         dates = set(self.df['Date'])
         dates = self._filter_config(dates, 'Pressure', 'min_pressure')
@@ -191,6 +192,10 @@ class Regression:
         dates = self._filter_config(dates, 'Collar', 'collar')
         if not self.config['filter']['verbose'] and len(dates) < count:
             self._print_dropped(count, 'for configured filters')
+
+        # strip outliers
+        self._strip_outliers()
+
         if len(self.df) == 0:
             self._log('All data filtered')
             sys.exit(1)
@@ -316,7 +321,7 @@ class Regression:
             dates = data_for_pressure['Date']
             max_dates = self.config['pressure_counts']['max_dates']
             if max_dates and len(dates) > max_dates:
-                half = (max_dates - 1) // 2
+                half = max_dates // 2
                 dates_str = list(dates)[:half]
                 dates_str.append('...')
                 dates_str.extend(dates[-half:])
@@ -445,8 +450,8 @@ class Regression:
         dropped = old_count - new_count
         assert dropped >= 0
         if dropped > 0:
-            self._log(
-                f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} ({100 * dropped / self.num_days:.1f}%) {description}')
+            self._log(f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} '
+                      f'({100 * dropped / self.num_days:.1f}%) {description}')
         return new_count
 
     @staticmethod
@@ -486,6 +491,33 @@ class Regression:
         print(s)
         if self.log_file:
             print(s, file=self.log_file)
+
+    def _strip_outliers(self):
+        if self.config['strip_outliers']['enabled']:
+            threshold: float = self.config['strip_outliers']['threshold']
+            old_count = len(self.df)
+            all_outliers = np.zeros(old_count, dtype=bool)
+
+            verbose = []
+
+            for y_field in self.y_fields:
+                data = self.df[y_field.key]
+                median = np.median(data)
+                mad = np.median(np.abs(data - median))
+                if mad != 0:
+                    mod_z_scores = 0.6745 * (data - median) / mad # scale MAD to match normal distribuation
+                    is_outlier = np.abs(mod_z_scores) > threshold
+                    all_outliers |= is_outlier
+                    if is_outlier.any() and self.config['strip_outliers']['verbose']:
+                        dates = self.df[is_outlier]['Date']
+                        verbose.append(f'- {len(dates)} row{'s' if len(dates) > 1 else ''} with outlier {y_field.key}: '
+                                       f'{', '.join(dates)}')
+
+            if all_outliers.any():
+                self.df = self.df[~all_outliers]
+                self._print_dropped(old_count, 'with outlier data')
+                self._log('\n'.join(verbose))
+
 
     def _filter_config(self, dates: set, field_name: str, config_key: str) -> set:
         threshold = self.config['filter'][config_key]
@@ -780,7 +812,6 @@ class Regression:
         else:
             s = 'very weak'
         return f'{r:.2f} ({s})'
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

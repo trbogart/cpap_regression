@@ -4,22 +4,26 @@ save_logs: false # save logs (unless stats are disabled)
 stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
+strip_outliers:
+  enabled: true # true to enable outlier detection (modified Z-score)
+  threshold: 3.5
+  verbose: true
 filter:
-  max_days: 40 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.0 # optional min Pressure
   max_pressure: 7.8 # optional max Pressure
-  max_leak_rate: 1.6 # optional max AvgLR
+  max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep: 5.5 # optional min Sleep (hrs)
-  min_sleep_efficiency: 0.75 # optional min ratio between Sleep and Usage
+  min_sleep_efficiency: 0.75  # optional min ratio between Sleep and Usage
   collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: false # print details for configuration-based filtering
 pressure_transform: # use to combine pressure with another pressure (applied before filters)
 pressure_counts:
   enabled: true # true to show a breakdown of dates for each pressure
-  max_dates: 7 # optional maximum number of dates displayed for each pressure
+  max_dates: 6 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
@@ -193,6 +197,7 @@ fields:
     # Central Apnea Index (AS11)
   - key: 95%FL
     name: 95% Flow Limitation
+    y_field: true
     # 95%ile Flow Limitation (AS11)
   - key: AvgLR
     name: Average Leak Rate
