@@ -194,7 +194,7 @@ class Regression:
             self._print_dropped(count, 'for configured filters')
 
         # strip outliers
-        self._strip_outliers()
+        self._outliers()
 
         if len(self.df) == 0:
             self._log('All data filtered')
@@ -492,9 +492,10 @@ class Regression:
         if self.log_file:
             print(s, file=self.log_file)
 
-    def _strip_outliers(self):
-        if self.config['strip_outliers']['enabled']:
-            threshold: float = self.config['strip_outliers']['threshold']
+    def _outliers(self):
+        outliers_config = self.config['outliers']
+        if outliers_config['enabled']:
+            threshold: float = outliers_config['threshold']
             old_count = len(self.df)
             all_outliers = np.zeros(old_count, dtype=bool)
 
@@ -508,7 +509,7 @@ class Regression:
                     mod_z_scores = 0.6745 * (data - median) / mad # scale MAD to match normal distribuation
                     is_outlier = np.abs(mod_z_scores) > threshold
                     all_outliers |= is_outlier
-                    if is_outlier.any() and self.config['strip_outliers']['verbose']:
+                    if is_outlier.any() and outliers_config['verbose']:
                         dates = self.df[is_outlier]['Date']
                         verbose.append(f'- {len(dates)} row{'s' if len(dates) > 1 else ''} with outlier {y_field.key}: '
                                        f'{', '.join(dates)}')

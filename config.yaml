@@ -4,7 +4,7 @@ save_logs: false # save logs (unless stats are disabled)
 stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
-strip_outliers:
+outliers:
   enabled: true # true to enable outlier detection with Median Absolute Deviation (MAD)
   threshold: 3.5
   verbose: true
