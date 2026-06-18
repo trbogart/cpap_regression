@@ -159,14 +159,15 @@ class Regression:
 
 
         # convert time fields from H:MM to float hours
-        if 'Usage' in columns:
-            self.df['Usage'] = pd.to_timedelta(self.df['Usage'] + ':00').dt.total_seconds() / 3600
-        if 'Sleep' in columns:
-            self.df['Sleep'] = pd.to_timedelta(self.df['Sleep'] + ':00').dt.total_seconds() / 3600
-        if 'REM' in columns:
-            self.df['REM'] = pd.to_timedelta(self.df['REM'] + ':00').dt.total_seconds() / 3600
-        if 'Deep' in columns:
-            self.df['Deep'] = pd.to_timedelta(self.df['Deep'] + ':00').dt.total_seconds() / 3600
+        # noinspection PyTypeChecker,PyUnresolvedReferences
+        def convert_time(key):
+            if key in columns:
+                self.df[key] = pd.to_timedelta(self.df[key] + ':00').dt.total_seconds() / 3600
+
+        convert_time('Usage')
+        convert_time('Sleep')
+        convert_time('REM')
+        convert_time('Deep')
 
         # calculated fields
         if calculate_efficiency:
