@@ -48,7 +48,6 @@ r2:
   min_score: 0.1 # optional minimum correlation to display (default 0)
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
-  violin: false # true for violin plot
   box: true # true for box plot
   linear: false # true to plot scatter plot and linear regression
   quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)

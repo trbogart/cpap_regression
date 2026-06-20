@@ -694,12 +694,9 @@ class Regression:
                         plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
                     plt.show()
 
-                if plot_config['violin']:
-                    sns.violinplot(data=self.df, x=x_field.key, y=y_field.key, inner='quart', density_norm='count')
-                    show_plot(tags=['violin'])
-
                 if plot_config['box']:
-                    sns.boxplot(data=self.df, x=x_field.key, y=y_field.key)
+                    sns.boxplot(data=self.df, x=x_field.key, y=y_field.key, showfliers=False)
+                    sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6, legend=False)
                     show_plot(tags=['box'])
 
                 if plot_config['linear'] or plot_config['quadratic']:
