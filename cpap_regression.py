@@ -157,7 +157,6 @@ class Regression:
                     self._log(f"Config 'pressure_transform[{pressure:.1f}]' is not used")
             self.df['Pressure'] = self.df['Pressure'].replace(pressure_transform)
 
-
         # convert time fields from H:MM to float hours
         # noinspection PyTypeChecker,PyUnresolvedReferences
         def convert_time(key):
@@ -507,7 +506,7 @@ class Regression:
                 median = np.median(data)
                 mad = np.median(np.abs(data - median))
                 if mad != 0:
-                    mod_z_scores = 0.6745 * (data - median) / mad # scale MAD to match normal distribuation
+                    mod_z_scores = 0.6745 * (data - median) / mad  # scale MAD to match normal distribuation
                     is_outlier = np.abs(mod_z_scores) > threshold
                     all_outliers |= is_outlier
                     if is_outlier.any() and outliers_config['verbose']:
@@ -519,7 +518,6 @@ class Regression:
                 self.df = self.df[~all_outliers]
                 self._print_dropped(old_count, 'with outlier data')
                 self._log('\n'.join(verbose))
-
 
     def _filter_config(self, dates: set, field_name: str, config_key: str) -> set:
         threshold = self.config['filter'][config_key]
@@ -643,19 +641,33 @@ class Regression:
             s.append(f'for {field.name}')
 
         self._log(f'\n{' '.join(s)}')
-        self._print_field_weights(r2_scores, max_count=num_scores, min_weight=min_score, sort_by_magnitude = False)
+        self._print_field_weights(r2_scores, max_count=num_scores, min_weight=min_score, sort_by_magnitude=False,
+                                  print_none=True)
 
     def _print_field_weights(self, fields_and_weights: list[tuple[Field, float]], prefix: str = '- ',
-                             max_count: int | None = None, min_weight: float | None = 0, sort_by_magnitude: bool = True):
+                             max_count: int | None = None, min_weight: float | None = 0,
+                             sort_by_magnitude: bool = True, print_none: bool = False):
         if sort_by_magnitude:
             fields_and_weights.sort(key=lambda x: abs(x[1]), reverse=True)
         else:
             fields_and_weights.sort(key=lambda x: x[1], reverse=True)
         if max_count:
             fields_and_weights = fields_and_weights[:max_count]
-        for field, weight in fields_and_weights:
-            if not min_weight or abs(weight) >= min_weight:
+        if min_weight:
+            if sort_by_magnitude:
+                fields_and_weights = [(field, weight) for field, weight in fields_and_weights if
+                                      abs(weight) >= min_weight]
+            else:
+                fields_and_weights = [(field, weight) for field, weight in fields_and_weights if weight >= min_weight]
+        elif min_weight == 0:
+            fields_and_weights = [(field, weight) for field, weight in fields_and_weights if weight != 0]
+        # else min_weight is None, ignore
+
+        if len(fields_and_weights) > 0:
+            for field, weight in fields_and_weights:
                 self._log(f'{prefix}{field.name}: {weight:.3f}')
+        elif print_none:
+            self._log(f'{prefix}None')
 
     def _r2_score(self, y, y_pred, k: int) -> float:
         r2 = r2_score(y, y_pred)
@@ -675,7 +687,7 @@ class Regression:
         r2_linear = self._r2_score(y, poly1(x), 1)
 
         poly2 = Polynomial.fit(x, y, 2)
-        r2_quadratic =  self._r2_score(y, poly2(x), 1)
+        r2_quadratic = self._r2_score(y, poly2(x), 1)
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
@@ -811,6 +823,7 @@ class Regression:
         else:
             s = 'very weak'
         return f'{r:.2f} ({s})'
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
