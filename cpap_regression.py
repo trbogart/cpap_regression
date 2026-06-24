@@ -272,21 +272,17 @@ class Regression:
                 self.dropped_date: str = self.df.at[self.df.index[0], 'Date']
                 self.df_tomorrow = self.df.iloc[1:]
 
+    # noinspection PyStringConversionWithoutDunderMethod
     def run(self):
-        # noinspection PyStringConversionWithoutDunderMethod
-        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%)')
+        date_string = f'{self.df.at[self.df.index[0], 'Date']} and {self.df.at[self.df.index[-1], 'Date']}'
+        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) between {date_string}')
 
         if self.config['pressure_counts']['enabled']:
             self._pressure_counts()
+        elif self.dropped_pressure is not None:
+            self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
         else:
-            # noinspection PyStringConversionWithoutDunderMethod
-            date_string = f'{self.df.at[self.df.index[0], 'Date']} and {self.df.at[self.df.index[-1], 'Date']}'
-            self._log(f'Valid data between {date_string}')
-            if self.dropped_pressure is not None:
-                # noinspection PyStringConversionWithoutDunderMethod
-                self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
-            else:
-                self._log('Will not drop a row tomorrow')
+            self._log('Will not drop a row tomorrow')
 
         if len(self.df) < 2:
             self._log('Minimum N=2')
@@ -495,29 +491,27 @@ class Regression:
     def _outliers(self):
         outliers_config = self.config['outliers']
         if outliers_config['enabled']:
-            threshold: float = outliers_config['threshold']
-            old_count = len(self.df)
-            all_outliers = np.zeros(old_count, dtype=bool)
+            data = self.df[[field.key for field in self.y_fields]]
+            median = np.median(data, axis=0)
+            mad = np.median(np.abs(data - median), axis=0)
+            mod_z_scores = 0.6745 * (data - median) / mad  # scale MAD to match normal distribution
+            outliers = np.abs(mod_z_scores) > outliers_config['threshold']
+            outlier_rows = outliers.any(axis=1)
+            outlier_count = outlier_rows.sum()
 
-            verbose = []
+            self._log(f'Dropped {outlier_count} rows ({100*outlier_count/len(self.df):.1f}%) with outlier data')
 
-            for y_field in self.y_fields:
-                data = self.df[y_field.key]
-                median = np.median(data)
-                mad = np.median(np.abs(data - median))
-                if mad != 0:
-                    mod_z_scores = 0.6745 * (data - median) / mad  # scale MAD to match normal distribuation
-                    is_outlier = np.abs(mod_z_scores) > threshold
-                    all_outliers |= is_outlier
-                    if is_outlier.any() and outliers_config['verbose']:
-                        dates = self.df[is_outlier]['Date']
-                        verbose.append(f'- {len(dates)} row{'s' if len(dates) > 1 else ''} with outlier {y_field.key}: '
-                                       f'{', '.join(dates)}')
+            if outlier_count and outliers_config['verbose']:
+                dates = self.df['Date']
+                for y_field in self.y_fields:
+                    outlier_columns = outliers[y_field.key]
+                    count = outlier_columns.sum()
+                    if count > 0:
+                        filtered_dates = dates[outlier_columns]
+                        print(f'- {count} rows with outlier {y_field.key}: {', '.join(filtered_dates)}')
 
-            if all_outliers.any():
-                self.df = self.df[~all_outliers]
-                self._print_dropped(old_count, 'with outlier data')
-                self._log('\n'.join(verbose))
+            # noinspection PyTypeChecker
+            self.df = self.df[~outlier_rows]
 
     def _filter_config(self, dates: set, field_name: str, config_key: str) -> set:
         threshold = self.config['filter'][config_key]

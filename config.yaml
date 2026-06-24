@@ -5,11 +5,11 @@ stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 outliers:
-  enabled: true # true to enable outlier detection with Median Absolute Deviation (MAD)
+  enabled: true # true to enable modified z-score outlier detection
   threshold: 3.5
   verbose: true
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.0 # optional min Pressure
