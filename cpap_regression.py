@@ -179,7 +179,9 @@ class Regression:
             self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
 
         # get last pressure before config filtering so next pressure logic will work correctly
-        self.last_pressure: float | None = self.df['Pressure'].iloc[-1]
+        self.last_pressure: float | None = None
+        if self.config['next_pressure']['enabled']:
+            self.last_pressure = self.df['Pressure'].iloc[-1]
 
         # filter by config
         dates = set(self.df['Date'])
@@ -205,11 +207,8 @@ class Regression:
             if not self._is_pressure_valid(self.min_pressure):
                 self._log(f"Invalid 'min_pressure': {self.min_pressure:.1f}")
                 sys.exit(1)
-            if self.last_pressure < self.min_pressure:
-                last_valid_pressure = self.df['Pressure'].iloc[-1]
-                if self.config['next_pressure']['enabled']:
-                    self._log(
-                        f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' ({self.min_pressure:.1f})")
+            if self.last_pressure is not None and self.last_pressure < self.min_pressure:
+                self._log(f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' ({self.min_pressure:.1f})")
                 self.last_pressure = None
         else:
             # noinspection PyTypeChecker
@@ -220,12 +219,8 @@ class Regression:
                 self._log(f"Invalid 'max_pressure': {self.max_pressure:.1f}")
                 sys.exit(1)
             if self.last_pressure is not None and self.last_pressure > self.max_pressure:
-                last_valid_pressure = self.df['Pressure'].iloc[-1]
-                if self.config['next_pressure']['enabled']:
-                    self._log(
-                        f"Last pressure ({self.last_pressure:.1f}) above 'max_pressure' "
-                        f"({self.max_pressure:.1f}), using {last_valid_pressure:.1f} instead")
-                self.last_pressure = last_valid_pressure
+                self._log(f"Last pressure ({self.last_pressure:.1f}) above 'max_pressure' ({self.max_pressure:.1f})")
+                self.last_pressure = None
         else:
             # noinspection PyTypeChecker
             self.max_pressure: float = max(self.last_pressure, self.df['Pressure'].max())
@@ -253,7 +248,7 @@ class Regression:
             self.valid_pressures = new_valid_pressures
             self.min_pressure = pressure_bucket_map[self.min_pressure]
             self.max_pressure = pressure_bucket_map[self.max_pressure]
-            self.last_pressure = pressure_bucket_map[self.last_pressure]
+            self.last_pressure = pressure_bucket_map[self.last_pressure] if self.last_pressure else None
 
         self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
