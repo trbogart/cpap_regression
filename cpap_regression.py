@@ -179,7 +179,7 @@ class Regression:
             self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
 
         # get last pressure before config filtering so next pressure logic will work correctly
-        self.last_pressure: float = self.df['Pressure'].iloc[-1]
+        self.last_pressure: float | None = self.df['Pressure'].iloc[-1]
 
         # filter by config
         dates = set(self.df['Date'])
@@ -208,9 +208,9 @@ class Regression:
             if self.last_pressure < self.min_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
                 if self.config['next_pressure']['enabled']:
-                    self._log(f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' "
-                              f"({self.min_pressure:.1f}), using {last_valid_pressure:.1f} instead")
-                self.last_pressure = last_valid_pressure
+                    self._log(
+                        f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' ({self.min_pressure:.1f})")
+                self.last_pressure = None
         else:
             # noinspection PyTypeChecker
             self.min_pressure: float = min(self.last_pressure, self.df['Pressure'].min())
@@ -219,7 +219,7 @@ class Regression:
             if not self._is_pressure_valid(self.max_pressure):
                 self._log(f"Invalid 'max_pressure': {self.max_pressure:.1f}")
                 sys.exit(1)
-            if self.last_pressure > self.max_pressure:
+            if self.last_pressure is not None and self.last_pressure > self.max_pressure:
                 last_valid_pressure = self.df['Pressure'].iloc[-1]
                 if self.config['next_pressure']['enabled']:
                     self._log(
@@ -331,7 +331,8 @@ class Regression:
             self._log(f'{prefix}Mean Pressure: {self._mean_pressure_string(avg_pressure)}')
 
             if self.config['pressure_counts']['pressure_date_correlation']:
-                correl = np.corrcoef(df['Pressure'], df['Timestamp'])[0, 1]
+                # noinspection PyTypeChecker
+                correl: float = np.corrcoef(df['Pressure'], df['Timestamp'])[0, 1]
                 self._log(f'{prefix}Correlation between Pressure and Date: {self._get_correlation_string(correl)}')
 
         print_summary(self.df)
@@ -370,8 +371,8 @@ class Regression:
         pressure_counts = df['Pressure'].value_counts()
         extreme_pressures = {self.min_pressure, self.max_pressure}
 
-        def is_zero_extreme(pr: float) -> bool:
-            return pr in extreme_pressures and pressure_counts.get(pr, 0) == 0
+        def is_zero_extreme(pr: float | None) -> bool:
+            return pr is not None and pr in extreme_pressures and pressure_counts.get(pr, 0) == 0
 
         # extreme pressure with zero count will always be prioritized, but last pressure or dropped pressure
         # may not be locked with min_pressure or max_pressure config (only matters if both extreme counts are zero)
@@ -432,14 +433,20 @@ class Regression:
                 next_pressure = pressure
                 best_score = score
 
-        # noinspection PyTypeChecker,PyUnresolvedReferences
-        tomorrow = (self.max_date_time + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-        if next_pressure < self.last_pressure:
-            self._log(f'\nDecrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
-        elif next_pressure > self.last_pressure:
-            self._log(f'\nIncrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
-        else:
-            self._log(f'\nLeave Pressure at {next_pressure:.1f} for {tomorrow}')
+        self._print_next_pressure(next_pressure)
+
+    def _print_next_pressure(self, next_pressure: float | None):
+        if next_pressure is not None:
+            # noinspection PyTypeChecker,PyUnresolvedReferences
+            tomorrow = (self.max_date_time + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+            if self.last_pressure is None:
+                self._log(f'\nSet Pressure to {next_pressure:.1f} for {tomorrow}')
+            elif next_pressure < self.last_pressure:
+                self._log(f'\nDecrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
+            elif next_pressure > self.last_pressure:
+                self._log(f'\nIncrease Pressure from {self.last_pressure:.1f} to {next_pressure:.1f} for {tomorrow}')
+            else:
+                self._log(f'\nLeave Pressure at {next_pressure:.1f} for {tomorrow}')
 
     def _print_dropped(self, old_count: int, description: str) -> int:
         new_count = len(self.df)
@@ -499,7 +506,7 @@ class Regression:
             outlier_rows = outliers.any(axis=1)
             outlier_count = outlier_rows.sum()
 
-            self._log(f'Dropped {outlier_count} rows ({100*outlier_count/len(self.df):.1f}%) with outlier data')
+            self._log(f'Dropped {outlier_count} rows ({100 * outlier_count / len(self.df):.1f}%) with outlier data')
 
             if outlier_count and outliers_config['verbose']:
                 dates = self.df['Date']
