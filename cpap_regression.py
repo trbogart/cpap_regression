@@ -448,7 +448,7 @@ class Regression:
         dropped = old_count - new_count
         assert dropped >= 0
         if dropped > 0:
-            self._log(f'Dropped {dropped} {'rows' if dropped > 1 else 'row'} '
+            self._log(f'Dropped {dropped} {'rows' if dropped != 1 else 'row'} '
                       f'({100 * dropped / self.num_days:.1f}%) {description}')
         return new_count
 
@@ -533,7 +533,7 @@ class Regression:
         num_removed = len(dates) - len(new_dates)
         if self.config['filter']['verbose']:
             if config_key is not None:
-                self._log(f'Dropped {num_removed} {'rows' if num_removed > 1 else 'row'} for '
+                self._log(f'Dropped {num_removed} {'rows' if num_removed != 1 else 'row'} for '
                           f'{config_key.replace('_', ' ')}: {threshold}')
             elif num_removed > 0:
                 # for weight

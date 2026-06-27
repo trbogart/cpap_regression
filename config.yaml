@@ -5,7 +5,7 @@ stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 outliers:
-  enabled: true # true to enable modified z-score outlier detection
+  enabled: false # true to enable modified z-score outlier detection
   threshold: 3.5
   verbose: true
 filter:
@@ -19,18 +19,18 @@ filter:
   min_sleep: 5.0 # optional min Sleep (hrs)
   min_sleep_efficiency:  # optional min ratio between Sleep and Usage
   collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
-  verbose: false # print details for configuration-based filtering
+  verbose: true # print details for configuration-based filtering
 pressure_transform: # use to combine pressure with another pressure (applied before filters)
 pressure_counts:
   enabled: true # true to show a breakdown of dates for each pressure
-  max_dates: 6 # optional maximum number of dates displayed for each pressure
+  max_dates: 8 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
   last_pressure_boost: 3 # optional boost for last pressure (positive number reduces adjusted count)
   random_sigma: 0.5 # optional sigma used to randomly adjust counts (low value for tie-breaker, larger value for more randomization)
   pressure_boosts: # dictionary of pressure boosts (positive number reduces adjusted count)
-  center_weight: 1 # optional multiplier applied to distance from pressure that will center mean
+  center_weight:  # optional multiplier applied to distance from pressure that will center mean
   verbose: true
 all_correlations:
   enabled: false # true to run correlations between all enabled fields
@@ -43,7 +43,7 @@ correlation:
 r2:
   linear: true # true to display linear R² scores
   quadratic: true # true to display quadratic R² scores
-  adjusted: true # true to use adjusted R²
+  adjusted: false # true to use adjusted R²
   num_scores:  # optional number of R² scores to display for field in x_fields (null to display all)
   min_score: 0.1 # optional minimum correlation to display (default 0)
 plot:
@@ -203,7 +203,7 @@ fields:
     x_field: false
     y_field: true
     multi_x_field: true
-    plot: true
+    plot: false
     # Average leak rage (AS11)
   - key: FI Mean
     name: Flatness Index Mean
