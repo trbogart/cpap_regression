@@ -5,18 +5,18 @@ stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 outliers:
-  enabled: false # true to enable modified z-score outlier detection
+  enabled: true # true to enable modified z-score outlier detection
   threshold: 3.5
   verbose: true
 filter:
-  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.2 # optional min Pressure
-  max_pressure: 7.8 # optional max Pressure
+  max_pressure: 8.0 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
-  min_sleep: 5.0 # optional min Sleep (hrs)
+  min_sleep:  # optional min Sleep (hrs)
   min_sleep_efficiency:  # optional min ratio between Sleep and Usage
   collar: 0 # optional collar value (0 for no collar, 1 for collar, or null for both)
   verbose: true # print details for configuration-based filtering
@@ -51,7 +51,7 @@ plot:
   box: true # true for box plot
   linear: false # true to plot scatter plot and linear regression
   quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
-  min_r2: 0.1 # optional min R² score (either linear or quadratic) to display graphs
+  min_r2: 0.2 # optional min R² score (either linear or quadratic) to display graphs
   save: false # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field

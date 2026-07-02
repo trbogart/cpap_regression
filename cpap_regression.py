@@ -64,15 +64,15 @@ class Regression:
 
         columns = {'Date', 'Pressure'}
         filter_config = self.config['filter']
-        if 'max_leak_rate' in filter_config:
+        if filter_config.get('max_leak_rate') is not None:
             columns.add('AvgLR')
-        if 'min_usage' in filter_config:
+        if filter_config.get('min_usage') is not None:
             columns.add('Usage')
-        if 'min_sleep' in filter_config:
+        if filter_config.get('min_sleep') is not None:
             columns.add('Sleep')
-        if 'collar' in filter_config:
+        if filter_config.get('collar') is not None:
             columns.add('Collar')
-        calculate_efficiency = 'min_sleep_efficiency' in filter_config
+        calculate_efficiency = filter_config.get('min_sleep_efficiency') is not None
         calculate_rdi = False
         calculate_ned_mean_split = False
 
