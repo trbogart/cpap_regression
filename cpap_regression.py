@@ -227,6 +227,9 @@ class Regression:
 
         self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
                                                      int(round(self.max_pressure * 5)) + 1)]
+        if pressure_transform:
+            pressures = [pressure_transform.get(pressure, pressure) for pressure in self.valid_pressures]
+            self.valid_pressures = list(dict.fromkeys(pressures))
 
         num_pressures = len(self.valid_pressures)
         if self.config['stats']['bucket'] and num_pressures > 3:
