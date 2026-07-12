@@ -5,15 +5,15 @@ stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
 outliers:
-  enabled: true # true to enable modified z-score outlier detection
+  enabled: false # true to enable modified z-score outlier detection
   threshold: 3.5
   verbose: true
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.4 # optional min Pressure
-  max_pressure: 8.4 # optional max Pressure
+  max_pressure: 7.8 # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep:  # optional min Sleep (hrs)
@@ -23,7 +23,7 @@ filter:
 pressure_transform: # use to combine pressure with another pressure (applied before filters)
 pressure_counts:
   enabled: true # true to show a breakdown of dates for each pressure
-  max_dates: 8 # optional maximum number of dates displayed for each pressure
+  max_dates: 12 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
   enabled: true # true to enable recommending next pressure (choose lowest adjusted pressure count)
@@ -49,9 +49,9 @@ r2:
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
   box: true # true for box plot
-  linear: false # true to plot scatter plot and linear regression
-  quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
-  min_r2: 0.2 # optional min R² score (either linear or quadratic) to display graphs
+  linear: true # true to plot scatter plot and linear regression
+  quadratic: true # include plot scatter plot and quadratic regression (combined with linear if both are true)
+  min_r2: 0.1 # optional min R² score (either linear or quadratic) to display graphs
   save: false # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field

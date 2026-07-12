@@ -579,10 +579,12 @@ class Regression:
         min_correlation = self.config['correlation']['min_correlation']
 
         for x_field in self.x_fields:
-            if len(self.df[x_field.key].unique()) < 2:
+            num_x_values = len(self.df[x_field.key].unique())
+            if num_x_values < 2:
                 self._log(f'\nSkip {x_field.name}: only 1 value')
             else:
-                field_corr_and_r2_scores = [(y_field, self._linear_quadratic_field(y_field, x_field))
+                calculate_quadratic = num_x_values >= 3
+                field_corr_and_r2_scores = [(y_field, self._linear_quadratic_field(y_field, x_field, calculate_quadratic))
                                             for y_field in self.y_fields if x_field != y_field]
                 if self.config['correlation']['enabled']:
                     fields_and_correlations = [(y_field, corr) for y_field, (corr, _, _) in field_corr_and_r2_scores]
@@ -676,7 +678,7 @@ class Regression:
         return r2
 
     # return correlation, linear R2 score, and quadratic R2 score
-    def _linear_quadratic_field(self, y_field: Field, x_field: Field) -> tuple[float, float, float]:
+    def _linear_quadratic_field(self, y_field: Field, x_field: Field, calculate_quadratic: bool) -> tuple[float, float, float]:
         x = self.df[x_field.key]
         y = self.df[y_field.key]
 
@@ -685,8 +687,12 @@ class Regression:
         poly1 = Polynomial.fit(x, y, 1)
         r2_linear = self._r2_score(y, poly1(x), 1)
 
-        poly2 = Polynomial.fit(x, y, 2)
-        r2_quadratic = self._r2_score(y, poly2(x), 1)
+        if calculate_quadratic:
+            poly2 = Polynomial.fit(x, y, 2)
+            r2_quadratic = self._r2_score(y, poly2(x), 1)
+        else:
+            poly2 = None
+            r2_quadratic = float('nan')
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
@@ -694,8 +700,10 @@ class Regression:
                 def show_plot(tags: list[str] | None = None):
                     title_lines = [f'{y_field.title} vs. {x_field.title}']
                     r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
-                    title_lines.append(f'{r2_prefix}linear R² = {r2_linear:.3f}, '
-                                       f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
+                    metrics = [f'correl = {r:.3f}', f'{r2_prefix}linear R² = {r2_linear:.3f}']
+                    if calculate_quadratic:
+                        metrics.append(f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
+                    title_lines.append(', '.join(metrics))
 
                     plt.xlabel(f'{x_field.name}')
                     plt.ylabel(y_field.name)
@@ -710,16 +718,18 @@ class Regression:
                     sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6, legend=False)
                     show_plot(tags=['box'])
 
-                if plot_config['linear'] or plot_config['quadratic']:
+                plot_linear = plot_config['linear']
+                plot_quadratic = calculate_quadratic and plot_config['quadratic']
+                if plot_linear or plot_quadratic:
                     plt.scatter(x, y)
 
                     polyline = np.linspace(x.min(), x.max(), 100)
-                    if plot_config['linear']:
+                    if plot_linear:
                         # linear regression
                         plt.plot(polyline, poly1(polyline), color='blue')
 
                     # quadratic regression
-                    if plot_config['quadratic']:
+                    if plot_quadratic:
                         c, b, a = poly2.convert().coef
 
                         # plot minima or maxima of quadratic regression, if in domain
