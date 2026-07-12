@@ -75,6 +75,20 @@ class Regression:
         calculate_efficiency = filter_config.get('min_sleep_efficiency') is not None
         calculate_rdi = False
         calculate_ned_mean_split = False
+        calculate_mod_gi = False
+        calculate_inv_spo2 = False
+
+        gi_normal = {
+            'GI Sk': 0.3,
+            'GI Sp': 0.2,
+            'GI FT': 0.25,
+            'GI TH': 0.3,
+            'GI MP': 0.15,
+            'GI NP': 0.1,
+            'GI IR': 0.2,
+            'GI MB': 0.15,
+            'GI VA': 0.3,
+        }
 
         for field in self.enabled_fields:
             if field.key == 'RDI':
@@ -85,6 +99,8 @@ class Regression:
                 pass  # calculated from Date, which is always included
             elif field.key == 'NED Mean Split':
                 calculate_ned_mean_split = True
+            elif field.key == 'SpO2 Drop':
+                calculate_inv_spo2 = True
             else:
                 columns.add(field.key)
         if calculate_efficiency:
@@ -96,6 +112,8 @@ class Regression:
         if calculate_ned_mean_split:
             columns.add('H1 NED Mean')
             columns.add('H2 NED Mean')
+        if calculate_inv_spo2:
+            columns.add('SpO2')
 
         self.df = pd.read_csv(self.config['data_file'], usecols=list(columns))
 
@@ -172,12 +190,6 @@ class Regression:
         if calculate_efficiency:
             self.df['Efficiency'] = self.df['Sleep'] / self.df['Usage']
 
-        if calculate_rdi:
-            self.df['RDI'] = self.df['AHI'] + self.df['RERA']
-
-        if calculate_ned_mean_split:
-            self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
-
         # get last pressure before config filtering so next pressure logic will work correctly
         self.last_pressure: float | None = None
         if self.config['next_pressure']['enabled']:
@@ -194,6 +206,15 @@ class Regression:
         dates = self._filter_config(dates, 'Collar', 'collar')
         if not self.config['filter']['verbose'] and len(dates) < count:
             self._print_dropped(count, 'for configured filters')
+
+        if calculate_rdi:
+            self.df['RDI'] = self.df['AHI'] + self.df['RERA']
+
+        if calculate_ned_mean_split:
+            self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
+
+        if calculate_inv_spo2:
+            self.df['SpO2 Drop'] = 100 - self.df['SpO2']
 
         # strip outliers
         self._outliers()

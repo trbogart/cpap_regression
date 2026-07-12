@@ -9,7 +9,7 @@ outliers:
   threshold: 3.5
   verbose: true
 filter:
-  max_days: 42 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days: 30 # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure: 7.4 # optional min Pressure
@@ -51,7 +51,7 @@ plot:
   box: true # true for box plot
   linear: true # true to plot scatter plot and linear regression
   quadratic: true # include plot scatter plot and quadratic regression (combined with linear if both are true)
-  min_r2: 0.1 # optional min R² score (either linear or quadratic) to display graphs
+  min_r2: 0.2 # optional min R² score (either linear or quadratic) to display graphs
   save: false # save plots
 elastic_net:
   enabled: false # true to enable ElasticNet regression using multi_x_field
@@ -233,6 +233,9 @@ fields:
     plot: true
     # Sample Entropy (Regularity Score) - https://airwaylab.app/glossary/sample-entropy
     # Good < 30, Borderline 30-50, Overly Regular > 50
+  - key: SpO2 Drop
+    y_field: true
+    plot: true
   - key: Timestamp # numeric Date
     name: Date
     x_field: false
