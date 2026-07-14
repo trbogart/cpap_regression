@@ -70,12 +70,9 @@ class Regression:
             columns.add('Usage')
         if filter_config.get('min_sleep') is not None:
             columns.add('Sleep')
-        if filter_config.get('collar') is not None:
-            columns.add('Collar')
         calculate_efficiency = filter_config.get('min_sleep_efficiency') is not None
         calculate_rdi = False
         calculate_ned_mean_split = False
-        calculate_mod_gi = False
         calculate_inv_spo2 = False
 
         gi_normal = {
@@ -155,10 +152,6 @@ class Regression:
         # Pressure field can be empty or contain an exclusion note
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
 
-        # Collar field is 0 by default
-        if 'Collar' in columns:
-            self.df['Collar'] = self.df['Collar'].fillna(0)
-
         # drop invalid data
         self.df.dropna(inplace=True)
         count = self._print_dropped(count, 'with invalid data')
@@ -203,7 +196,6 @@ class Regression:
         dates = self._filter_config(dates, 'Usage', 'min_usage')
         dates = self._filter_config(dates, 'Sleep', 'min_sleep')
         dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
-        dates = self._filter_config(dates, 'Collar', 'collar')
         if not self.config['filter']['verbose'] and len(dates) < count:
             self._print_dropped(count, 'for configured filters')
 
