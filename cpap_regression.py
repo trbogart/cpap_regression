@@ -401,7 +401,7 @@ class Regression:
         if self.config['next_pressure']['verbose']:
             self._log(
                 f'\nPressure that would move mean Pressure to center ({self.center_pressure:.1f}): {target_pressure:.1f}')
-            self._log(f'Next Pressure Scores:')
+            self._log(f'Next pressure scores (choose lowest):')
 
         last_pressure_boost = self.config['next_pressure']['last_pressure_boost']
         pressure_boosts = self.config['next_pressure']['pressure_boosts']
