@@ -68,12 +68,9 @@ class Regression:
             columns.add('AvgLR')
         if filter_config.get('min_usage') is not None:
             columns.add('Usage')
-        if filter_config.get('min_sleep') is not None:
-            columns.add('Sleep')
-        calculate_efficiency = filter_config.get('min_sleep_efficiency') is not None
         calculate_rdi = False
         calculate_ned_mean_split = False
-        calculate_inv_spo2 = False
+        calculate_spo2_drop = False
 
         gi_normal = {
             'GI Sk': 0.3,
@@ -90,26 +87,21 @@ class Regression:
         for field in self.enabled_fields:
             if field.key == 'RDI':
                 calculate_rdi = True
-            elif field.key == 'Efficiency':
-                calculate_efficiency = True
             elif field.key == 'Timestamp' or field.key == 'DateTime':
                 pass  # calculated from Date, which is always included
             elif field.key == 'NED Mean Split':
                 calculate_ned_mean_split = True
             elif field.key == 'SpO2 Drop':
-                calculate_inv_spo2 = True
+                calculate_spo2_drop = True
             else:
                 columns.add(field.key)
-        if calculate_efficiency:
-            columns.add('Usage')
-            columns.add('Sleep')
         if calculate_rdi:
             columns.add('AHI')
             columns.add('RERA')
         if calculate_ned_mean_split:
             columns.add('H1 NED Mean')
             columns.add('H2 NED Mean')
-        if calculate_inv_spo2:
+        if calculate_spo2_drop:
             columns.add('SpO2')
 
         self.df = pd.read_csv(self.config['data_file'], usecols=list(columns))
@@ -130,12 +122,14 @@ class Regression:
         else:
             self.log_file = None
 
+        count = len(self.df) # initial count (to track dropped rows)
+        self._check_no_data()
+
         date_counts = self.df['Date'].value_counts()
         if date_counts.iloc[0] > 1:
             self._log(f'Duplicate Date: {date_counts.index[0]}')
             sys.exit(1)
 
-        count = len(self.df)
         # noinspection PyStringConversionWithoutDunderMethod
         date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
         self._log(f'{count} rows between {date_string} ({self.num_days} days)')
@@ -156,9 +150,7 @@ class Regression:
         self.df.dropna(inplace=True)
         count = self._print_dropped(count, 'with invalid data')
 
-        if count == 0:
-            self._log('No data')
-            sys.exit(1)
+        self._check_no_data()
 
         pressure_transform: dict[float, float] = self.config['pressure_transform']
         if pressure_transform:
@@ -180,9 +172,6 @@ class Regression:
         convert_time('Deep')
 
         # calculated fields
-        if calculate_efficiency:
-            self.df['Efficiency'] = self.df['Sleep'] / self.df['Usage']
-
         # get last pressure before config filtering so next pressure logic will work correctly
         self.last_pressure: float | None = None
         if self.config['next_pressure']['enabled']:
@@ -194,8 +183,6 @@ class Regression:
         dates = self._filter_config(dates, 'Pressure', 'max_pressure')
         dates = self._filter_config(dates, 'AvgLR', 'max_leak_rate')
         dates = self._filter_config(dates, 'Usage', 'min_usage')
-        dates = self._filter_config(dates, 'Sleep', 'min_sleep')
-        dates = self._filter_config(dates, 'Efficiency', 'min_sleep_efficiency')
         if not self.config['filter']['verbose'] and len(dates) < count:
             self._print_dropped(count, 'for configured filters')
 
@@ -205,15 +192,13 @@ class Regression:
         if calculate_ned_mean_split:
             self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
 
-        if calculate_inv_spo2:
+        if calculate_spo2_drop:
             self.df['SpO2 Drop'] = 100 - self.df['SpO2']
 
         # strip outliers
         self._outliers()
 
-        if len(self.df) == 0:
-            self._log('All data filtered')
-            sys.exit(1)
+        self._check_no_data()
 
         if filter_config['min_pressure']:
             self.min_pressure: float = filter_config['min_pressure']
@@ -223,9 +208,11 @@ class Regression:
             if self.last_pressure is not None and self.last_pressure < self.min_pressure:
                 self._log(f"Last pressure ({self.last_pressure:.1f}) below 'min_pressure' ({self.min_pressure:.1f})")
                 self.last_pressure = None
-        else:
+        elif self.last_pressure:
             # noinspection PyTypeChecker
             self.min_pressure: float = min(self.last_pressure, self.df['Pressure'].min())
+        else:
+            self.min_pressure: float = self.df['Pressure'].min()
         if filter_config['max_pressure']:
             self.max_pressure: float = filter_config['max_pressure']
             if not self._is_pressure_valid(self.max_pressure):
@@ -234,9 +221,11 @@ class Regression:
             if self.last_pressure is not None and self.last_pressure > self.max_pressure:
                 self._log(f"Last pressure ({self.last_pressure:.1f}) above 'max_pressure' ({self.max_pressure:.1f})")
                 self.last_pressure = None
-        else:
+        elif self.last_pressure:
             # noinspection PyTypeChecker
             self.max_pressure: float = max(self.last_pressure, self.df['Pressure'].max())
+        else:
+            self.max_pressure: float = self.df['Pressure'].max()
 
         self.valid_pressures = [p / 5 for p in range(int(round(self.min_pressure * 5)),
                                                      int(round(self.max_pressure * 5)) + 1)]
@@ -265,7 +254,6 @@ class Regression:
             self.min_pressure = pressure_bucket_map[self.min_pressure]
             self.max_pressure = pressure_bucket_map[self.max_pressure]
             self.last_pressure = pressure_bucket_map[self.last_pressure] if self.last_pressure else None
-
         self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
         self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
@@ -283,6 +271,14 @@ class Regression:
                 self.dropped_date: str = self.df.at[self.df.index[0], 'Date']
                 self.df_tomorrow = self.df.iloc[1:]
 
+    def _check_no_data(self):
+        if len(self.df) == 0:
+            self._log('No data')
+            sys.exit(1)
+        elif len(self.df) == 1:
+            self._log(f'N=1 with Pressure={self.df.at[self.df.index[-1], 'Pressure']}')
+            sys.exit(1)
+
     # noinspection PyStringConversionWithoutDunderMethod
     def run(self):
         date_string = f'{self.df.at[self.df.index[0], 'Date']} and {self.df.at[self.df.index[-1], 'Date']}'
@@ -296,7 +292,7 @@ class Regression:
             self._log('Will not drop a row tomorrow')
 
         if len(self.df) < 2:
-            self._log('Minimum N=2')
+            self._log('Minimum N=1')
             sys.exit(0)
 
         if self.config['stats']['enabled']:
