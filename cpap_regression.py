@@ -590,7 +590,7 @@ class Regression:
         min_correlation = self.config['correlation']['min_correlation']
 
         for x_field in self.x_fields:
-            num_x_values = len(self.df[x_field.key].unique())
+            num_x_values = len(self.df[x_field.key].unique()) if x_field.discrete else len(self.df)
             if num_x_values < 2:
                 self._log(f'\nSkip {x_field.name}: only 1 value')
             else:
