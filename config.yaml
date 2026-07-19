@@ -73,6 +73,7 @@ linear_partial_dependence:
 # - y_field: true if used as a y field (will also be used for regularization unless multi_x_field is true)
 # - x_field: true if used as an x field for correlation and linear regression
 # - multi_x_field: true if used as an x field for regularization (e.g. ElasticNet)
+# - discrete: true if discrete field (box plot supported)
 fields:
   - key: Comb FL
     name: Combined FL # % of breath
@@ -198,10 +199,10 @@ fields:
     # 95%ile Flow Limitation (AS11)
   - key: AvgLR
     name: Average Leak Rate
-    x_field: false
+    plot: true
+    x_field: true
     y_field: true
     multi_x_field: true
-    plot: false
     # Average leak rage (AS11)
   - key: FI Mean
     name: Flatness Index Mean
@@ -241,9 +242,11 @@ fields:
     # Oura Breathing Disturbance Index
   - key: Timestamp # numeric Date
     name: Date
+    plot: true
     x_field: true
     multi_x_field: true
   - key: Pressure
     plot: true
+    discrete: true
     x_field: true
     multi_x_field: true

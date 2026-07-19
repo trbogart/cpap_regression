@@ -28,6 +28,7 @@ class Field:
     y_field: bool
     x_field: bool
     multi_x_field: bool
+    discrete: bool
 
     @property
     def enabled(self) -> bool:
@@ -46,7 +47,8 @@ class Field:
         y_field = field_config['y_field'] if 'y_field' in field_config else False
         x_field = field_config['x_field'] if 'x_field' in field_config else False
         multi_x_field = field_config['multi_x_field'] if 'multi_x_field' in field_config else False
-        return cls(key, name, title, plot, y_field, x_field, multi_x_field)
+        discrete = field_config['discrete'] if 'discrete' in field_config else False
+        return cls(key, name, title, plot, y_field, x_field, multi_x_field, discrete)
 
 
 class Regression:
@@ -722,7 +724,7 @@ class Regression:
                         plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
                     plt.show()
 
-                if plot_config['box']:
+                if x_field.discrete and plot_config['box']:
                     sns.boxplot(data=self.df, x=x_field.key, y=y_field.key, showfliers=False)
                     sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6, legend=False)
                     show_plot(tags=['box'])
