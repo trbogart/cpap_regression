@@ -77,7 +77,8 @@ linear_partial_dependence:
 fields:
   - key: Comb FL
     name: Combined FL # % of breath
-    y_field: false # excellent, no need to track
+    y_field: true # excellent, no need to track
+    plot: true
     # Combined FL Percentage - https://airwaylab.app/glossary/combined-fl-percentage
     # The percentage of breaths classified as flow-limited by either NED (above 34%) or Flatness Index (above 0.85).
     # Combines both detection methods for a more complete picture.
@@ -153,7 +154,7 @@ fields:
     # Measures breath-to-breath variability in tidal volume. High variability indicates unstable ventilation,
     # which can accompany cycling between obstruction and recovery.
   - key: NED Mean
-    y_field: false # excellent, no need to track
+    y_field: false # heavily correlates with NED RDI
     # NED Mean (Negative Effort Dependence) - https://airwaylab.app/glossary/ned-mean
     # A per-breath measure of flow limitation calculated as the ratio of peak inspiratory flow to mid-inspiratory flow.
     # Higher values indicate more airway narrowing during inhalation.
