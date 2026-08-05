@@ -782,7 +782,7 @@ class Regression:
             for y_field in self.multi_y_fields:
                 model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
                                      l1_ratio=config['l1_ratio'], fit_intercept=True,
-                                     random_state=config['seed'])
+                                     random_state=config['seed'], max_iter=2000)
                 model.fit(self.multi_x_scaled, self.df[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_)
 

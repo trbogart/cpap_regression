@@ -13,7 +13,7 @@ filter:
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
-  max_pressure: 7.6 # optional max Pressure
+  max_pressure:  # optional max Pressure
   max_leak_rate: 2.0 # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep_efficiency:  # optional min ratio between Sleep and Usage
@@ -43,7 +43,7 @@ r2:
   quadratic: true # true to display quadratic R² scores
   adjusted: false # true to use adjusted R²
   num_scores:  # optional number of R² scores to display for field in x_fields (null to display all)
-  min_score: 0.1 # optional minimum correlation to display (default 0)
+  min_score: 0.2 # optional minimum correlation to display (default 0)
 plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
   box: false # true for box plot
@@ -251,4 +251,40 @@ fields:
     plot: true
     discrete: true
     x_field: false
+    multi_x_field: true
+  - key: Wt
+    name: Weight
+    plot: false
+    y_field: false
+    x_field: false
+    multi_x_field: true
+  - key: RdSc
+    name: Readiness Score
+    plot: true
+    y_field: true
+  - key: SlSc
+    name: Sleep Score
+    plot: true
+    y_field: true
+  - key: RHR
+    name: Resting Heart Rate
+    plot: true
+    y_field: true
+  - key: HRV
+    name: Heart Rate Variability
+    plot: true
+    y_field: true
+  - key: TPeak
+    name: Tirzepatide Peak Level
+    plot: false
+    multi_x_field: true
+  - key: TLevel
+    name: Tirzepatide Level
+    plot: true
+    x_field: true
+    multi_x_field: true
+  - key: Serm
+    name: Sermorelin
+    plot: false
+    x_field: true
     multi_x_field: true
