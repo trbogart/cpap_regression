@@ -807,8 +807,12 @@ class Regression:
                 self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):
-        field_weights = [(self.multi_x_fields[i], weight) for i, weight in enumerate(weights)
-                         if abs(weight) >= min_weight]
+        if min_weight:
+            field_weights = [(self.multi_x_fields[i], weight) for i, weight in enumerate(weights)
+                             if abs(weight) >= min_weight]
+        else:
+            field_weights = [(self.multi_x_fields[i], weight) for i, weight in enumerate(weights)
+                             if weight != 0]
         if field_weights:
             self._log(f'- {field.name}:')
             self._print_field_weights(field_weights, prefix=' -- ')
