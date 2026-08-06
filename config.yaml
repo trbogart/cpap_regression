@@ -274,15 +274,6 @@ fields:
     name: Heart Rate Variability
     plot: true
     y_field: true
-  - key: TPeak
-    name: Tirzepatide Peak Level
-    plot: false
-    multi_x_field: true
-  - key: TLevel
-    name: Tirzepatide Level
-    plot: true
-    x_field: true
-    multi_x_field: true
   - key: Serm
     name: Sermorelin
     plot: false
