@@ -258,7 +258,10 @@ class Regression:
             self.last_pressure = pressure_bucket_map[self.last_pressure] if self.last_pressure else None
         self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
-        self.multi_x_scaled = StandardScaler().fit_transform(self.df[[field.key for field in self.multi_x_fields]])
+        numeric_values = self.df.drop(columns=['Date','DateTime'])
+        scaled_values = StandardScaler().fit_transform(numeric_values)
+        self.scaled_data = pd.DataFrame(scaled_values, columns=numeric_values.columns)
+        self.multi_x_scaled = self.scaled_data[[field.key for field in self.multi_x_fields]]
 
         self.dropped_date: DatetimeIndex | None = None
         self.dropped_pressure: float | None = None
@@ -554,8 +557,10 @@ class Regression:
                 self._log(f'Dropped {num_removed} rows with zero {field_name}')
             if num_removed > 0:
                 for _, row in removed_rows.iterrows():
+                    # noinspection string-format
                     line = f'- {row['Date']}: Pressure={row['Pressure']:.1f}'
                     if field_name != 'Pressure':
+                        # noinspection string-format
                         line += f', {field_name}={row[field_name]:.2f}'
                     self._log(line)
         elif num_removed == 0 and field_name == 'Pressure':
@@ -783,7 +788,7 @@ class Regression:
                 model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
                                      l1_ratio=config['l1_ratio'], fit_intercept=True,
                                      random_state=config['seed'], max_iter=2000)
-                model.fit(self.multi_x_scaled, self.df[y_field.key])
+                model.fit(self.multi_x_scaled, self.scaled_data[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_)
 
     def _bayesian_ridge(self):
@@ -793,7 +798,7 @@ class Regression:
             self._log(f'\nBayesian Ridge weights with magnitude > {min_weight}:')
             for y_field in self.multi_y_fields:
                 model = BayesianRidge()
-                model.fit(self.multi_x_scaled, self.df[y_field.key])
+                model.fit(self.multi_x_scaled, self.scaled_data[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _ard(self):
@@ -803,7 +808,7 @@ class Regression:
             self._log(f'\nARD weights with magnitude > {min_weight}:')
             for y_field in self.multi_y_fields:
                 model = ARDRegression()
-                model.fit(self.multi_x_scaled, self.df[y_field.key])
+                model.fit(self.multi_x_scaled, self.scaled_data[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_, min_weight)
 
     def _print_multi_field_weights(self, field: Field, weights: np.ndarray, min_weight: float = 0):

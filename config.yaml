@@ -53,7 +53,7 @@ plot:
   save: false # save plots
 elastic_net:
   enabled: true # true to enable ElasticNet regression using multi_x_field
-  alpha: 1.0 # alpha for ElasticNet regression
+  alpha: 0.2 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
   seed: 42 # random seed
 bayesian_ridge:
@@ -154,7 +154,7 @@ fields:
     # Measures breath-to-breath variability in tidal volume. High variability indicates unstable ventilation,
     # which can accompany cycling between obstruction and recovery.
   - key: NED Mean
-    y_field: false # heavily correlates with NED RDI
+    y_field: true # heavily correlates with NED RDI
     # NED Mean (Negative Effort Dependence) - https://airwaylab.app/glossary/ned-mean
     # A per-breath measure of flow limitation calculated as the ratio of peak inspiratory flow to mid-inspiratory flow.
     # Higher values indicate more airway narrowing during inhalation.
