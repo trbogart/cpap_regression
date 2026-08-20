@@ -1,6 +1,7 @@
 data_file: cpap.csv # CSV file
 tag: # optional tag for saved files
 save_logs: false # save logs (unless stats are disabled)
+seed: 42 # random seed
 stats:
   enabled: true # false to disable all stats and log file
   bucket: false # true to combine adjacent pressures (works best with even number of pressures, can also use pressure_transform)
@@ -53,9 +54,8 @@ plot:
   save: false # save plots
 elastic_net:
   enabled: true # true to enable ElasticNet regression using multi_x_field
-  alpha: 0.2 # alpha for ElasticNet regression
+  alpha: 0.5 # alpha for ElasticNet regression
   l1_ratio: 1.0 # l1_ratio for ElasticNet regression
-  seed: 42 # random seed
 bayesian_ridge:
   enabled: false # perform BayesianRidge regression using multi_x_field
   min_weight: 0.2 # optional minimum BayesianRidge weight to print (default 0)
@@ -274,8 +274,3 @@ fields:
     name: Heart Rate Variability
     plot: true
     y_field: true
-  - key: Serm
-    name: Sermorelin
-    plot: false
-    x_field: true
-    multi_x_field: true

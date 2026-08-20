@@ -712,31 +712,32 @@ class Regression:
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
-            if not plot_config['min_r2'] or r2_linear >= plot_config['min_r2'] or r2_quadratic >= plot_config['min_r2']:
-                def show_plot(tags: list[str] | None = None):
-                    title_lines = [f'{y_field.title} vs. {x_field.title}']
-                    r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
-                    metrics = [f'correl = {r:.3f}', f'{r2_prefix}linear R² = {r2_linear:.3f}']
-                    if calculate_quadratic:
-                        metrics.append(f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
-                    title_lines.append(', '.join(metrics))
+            plot_linear = plot_config['linear']
+            plot_quadratic = calculate_quadratic and plot_config['quadratic']
 
-                    plt.xlabel(f'{x_field.name}')
-                    plt.ylabel(y_field.name)
-                    plt.title('\n'.join(title_lines))
-                    plt.tight_layout()
-                    if plot_config['save']:
-                        plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
-                    plt.show()
+            if plot_linear or plot_quadratic:
+                if not plot_config['min_r2'] or plot_linear and r2_linear >= plot_config['min_r2'] or plot_quadratic and r2_quadratic >= plot_config['min_r2']:
+                    def show_plot(tags: list[str] | None = None):
+                        title_lines = [f'{y_field.title} vs. {x_field.title}']
+                        r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
+                        metrics = [f'correl = {r:.3f}', f'{r2_prefix}linear R² = {r2_linear:.3f}']
+                        if plot_quadratic:
+                            metrics.append(f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
+                        title_lines.append(', '.join(metrics))
 
-                if x_field.discrete and plot_config['box']:
-                    sns.boxplot(data=self.df, x=x_field.key, y=y_field.key, showfliers=False)
-                    sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6, legend=False)
-                    show_plot(tags=['box'])
+                        plt.xlabel(f'{x_field.name}')
+                        plt.ylabel(y_field.name)
+                        plt.title('\n'.join(title_lines))
+                        plt.tight_layout()
+                        if plot_config['save']:
+                            plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
+                        plt.show()
 
-                plot_linear = plot_config['linear']
-                plot_quadratic = calculate_quadratic and plot_config['quadratic']
-                if plot_linear or plot_quadratic:
+                    if x_field.discrete and plot_config['box']:
+                        sns.boxplot(data=self.df, x=x_field.key, y=y_field.key, showfliers=False)
+                        sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6, legend=False)
+                        show_plot(tags=['box'])
+
                     plt.scatter(x, y)
 
                     polyline = np.linspace(x.min(), x.max(), 100)
@@ -787,7 +788,7 @@ class Regression:
             for y_field in self.multi_y_fields:
                 model = SGDRegressor(penalty="elasticnet", alpha=config['alpha'],
                                      l1_ratio=config['l1_ratio'], fit_intercept=True,
-                                     random_state=config['seed'], max_iter=2000)
+                                     random_state=self.config['seed'], max_iter=2000)
                 model.fit(self.multi_x_scaled, self.scaled_data[y_field.key])
                 self._print_multi_field_weights(y_field, model.coef_)
 
