@@ -242,8 +242,7 @@ fields:
     y_field: true
     plot: true
     # Oura Breathing Disturbance Index
-  - key: Timestamp # numeric Date
-    name: Date
+  - key: Day # numeric day
     plot: true
     x_field: true
     multi_x_field: true

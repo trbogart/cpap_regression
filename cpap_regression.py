@@ -89,7 +89,7 @@ class Regression:
         for field in self.enabled_fields:
             if field.key == 'RDI':
                 calculate_rdi = True
-            elif field.key == 'Timestamp' or field.key == 'DateTime':
+            elif field.key == 'Day' or field.key == 'DateTime':
                 pass  # calculated from Date, which is always included
             elif field.key == 'NED Mean Split':
                 calculate_ned_mean_split = True
@@ -109,7 +109,8 @@ class Regression:
         self.df = pd.read_csv(self.config['data_file'], usecols=list(columns))
 
         self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
-        self.df['Timestamp'] = self.df['DateTime'].astype('int64') / 1e9
+        min_date = self.df['DateTime'].min()
+        self.df['Day'] = (self.df['DateTime'] - min_date).dt.days
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
         self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
@@ -344,7 +345,7 @@ class Regression:
 
             if self.config['pressure_counts']['pressure_date_correlation']:
                 # noinspection PyTypeChecker
-                correl: float = np.corrcoef(df['Pressure'], df['Timestamp'])[0, 1]
+                correl: float = np.corrcoef(df['Pressure'], df['Day'])[0, 1]
                 self._log(f'{prefix}Correlation between Pressure and Date: {self._get_correlation_string(correl)}')
 
         print_summary(self.df)
