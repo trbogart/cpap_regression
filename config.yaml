@@ -10,12 +10,12 @@ outliers:
   threshold: 3.5
   verbose: true
 filter:
-  max_days: 56 # optional maximum number of days to include (applied after min_date and max_date)
+  max_days:  # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
   min_pressure:  # optional min Pressure
   max_pressure:  # optional max Pressure
-  max_leak_rate: 2.0 # optional max AvgLR
+  max_leak_rate:  # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep_efficiency:  # optional min ratio between Sleep and Usage
   verbose: false # print details for configuration-based filtering
@@ -49,7 +49,7 @@ plot:
   enabled: true # true to enable plotting when enabled for both x and y fields
   box: false # true for box plot
   linear: true # true to plot scatter plot and linear regression
-  quadratic: false # include plot scatter plot and quadratic regression (combined with linear if both are true)
+  quadratic: true # include plot scatter plot and quadratic regression (combined with linear if both are true)
   min_r2: 0.2 # optional min R² score (either linear or quadratic) to display graphs
   save: false # save plots
 elastic_net:
@@ -74,6 +74,7 @@ linear_partial_dependence:
 # - x_field: true if used as an x field for correlation and linear regression
 # - multi_x_field: true if used as an x field for regularization (e.g. ElasticNet)
 # - discrete: true if discrete field (box plot supported)
+# - default: default value if not set
 fields:
   - key: Comb FL
     name: Combined FL # % of breath
@@ -165,6 +166,9 @@ fields:
     y_field: false
   - key: NED Mean Split # calculated: abs(H2 NED Mean - H1 NED Mean)
     y_field: false
+  - key: NED RERA
+    y_field: true
+    plot: true
   - key: NED RDI
     y_field: true
     plot: true
@@ -205,14 +209,6 @@ fields:
     y_field: true
     multi_x_field: true
     # Average leak rage (AS11)
-  - key: FI Mean
-    name: Flatness Index Mean
-    y_field: false
-    plot: false
-    # Flatness Index Mean - https://airwaylab.app/glossary/flatness-index
-    # The ratio of mean inspiratory flow to peak inspiratory flow per breath. Values of 0.85 or above indicate
-    # significant flow limitation with a flat-topped breath pattern.
-    # Normal < 0.75, Borderline 0.75-0.85, Flow-Limited > 0.85
   - key: IFL
     title: IFL Symptom Risk %
     y_field: true
@@ -234,14 +230,6 @@ fields:
     plot: true
     # Sample Entropy (Regularity Score) - https://airwaylab.app/glossary/sample-entropy
     # Good < 30, Borderline 30-50, Overly Regular > 50
-  - key: SpO2 Drop # calculated as 100 - Oura SpO2
-    y_field: true
-    plot: true
-  - key: BDI
-    title: Breathing Disturbance Index
-    y_field: true
-    plot: true
-    # Oura Breathing Disturbance Index
   - key: Day # numeric day
     plot: true
     x_field: true
@@ -249,27 +237,12 @@ fields:
   - key: Pressure
     plot: true
     discrete: true
-    x_field: false
+    x_field: true
     multi_x_field: true
-  - key: Wt
-    name: Weight
-    plot: false
-    y_field: false
-    x_field: false
+  - key: ND
+    name: Nasal Dilator
+    plot: true
+    discrete: true
+    x_field: true
     multi_x_field: true
-  - key: RdSc
-    name: Readiness Score
-    plot: true
-    y_field: true
-  - key: SlSc
-    name: Sleep Score
-    plot: true
-    y_field: true
-  - key: RHR
-    name: Resting Heart Rate
-    plot: true
-    y_field: true
-  - key: HRV
-    name: Heart Rate Variability
-    plot: true
-    y_field: true
+    default: 0

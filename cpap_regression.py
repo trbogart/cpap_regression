@@ -29,6 +29,7 @@ class Field:
     x_field: bool
     multi_x_field: bool
     discrete: bool
+    default: float | None
 
     @property
     def enabled(self) -> bool:
@@ -48,7 +49,8 @@ class Field:
         x_field = field_config['x_field'] if 'x_field' in field_config else False
         multi_x_field = field_config['multi_x_field'] if 'multi_x_field' in field_config else False
         discrete = field_config['discrete'] if 'discrete' in field_config else False
-        return cls(key, name, title, plot, y_field, x_field, multi_x_field, discrete)
+        default = field_config['default'] if 'default' in field_config else None
+        return cls(key, name, title, plot, y_field, x_field, multi_x_field, discrete, default)
 
 
 class Regression:
@@ -107,6 +109,10 @@ class Regression:
             columns.add('SpO2')
 
         self.df = pd.read_csv(self.config['data_file'], usecols=list(columns))
+
+        default_values = {field.key: field.default for field in self.enabled_fields if field.default is not None}
+        if default_values:
+            self.df.fillna(default_values, inplace=True)
 
         self.df['DateTime'] = pd.to_datetime(self.df['Date'], format='%m/%d/%Y')
         min_date = self.df['DateTime'].min()
