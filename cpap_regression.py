@@ -66,7 +66,7 @@ class Regression:
         self.multi_x_fields = [field for field in self.enabled_fields if field.multi_x_field]
         self.multi_y_fields = [field for field in self.enabled_fields if field.multi_y_field]
 
-        columns = {'Date', 'Pressure'}
+        columns = {'Date', 'Pressure', 'Exclusion'}
         filter_config = self.config['filter']
         if filter_config.get('max_leak_rate') is not None:
             columns.add('AvgLR')
@@ -132,6 +132,20 @@ class Regression:
             self.log_file = None
 
         count = len(self.df) # initial count (to track dropped rows)
+
+        self.df = self.df[self.df['Exclusion'].isna()]
+        self.df.drop(columns=['Exclusion'], inplace=True)
+        new_count = len(self.df)
+        if new_count < count:
+            self._log(f'Dropped {count-new_count} rows with Exclusion set')
+            count = new_count
+        self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
+        self.df.dropna(subset=['Pressure'], inplace=True)
+        new_count = len(self.df)
+        if new_count < count:
+            self._log(f'Dropped {count-new_count} rows with non-numeric Pressure')
+            count = new_count
+
         self._check_no_data()
 
         date_counts = self.df['Date'].value_counts()
@@ -151,9 +165,6 @@ class Regression:
         if count < self.num_days:
             missing = self.num_days - count
             self._log(f'Missing {missing} {'rows' if missing > 1 else 'row'} ({100 * missing / self.num_days:.1f}%)')
-
-        # Pressure field can be empty or contain an exclusion note
-        self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
 
         # drop invalid data
         self.df.dropna(inplace=True)

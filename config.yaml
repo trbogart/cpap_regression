@@ -205,7 +205,7 @@ fields:
   - key: AvgLR
     name: Average Leak Rate
     plot: true
-    x_field: false
+    x_field: true
     y_field: true
     multi_x_field: true
     # Average leak rage (AS11)
@@ -239,10 +239,9 @@ fields:
     discrete: true
     x_field: true
     multi_x_field: true
-  - key: ND
-    name: Nasal Dilator
+  - key: Wt
+    name: Weight
     plot: true
     discrete: true
     x_field: true
     multi_x_field: true
-    default: 0
