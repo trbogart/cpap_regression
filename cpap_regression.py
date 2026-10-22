@@ -2,7 +2,7 @@ import argparse
 import random
 import sys
 from dataclasses import dataclass
-from itertools import islice
+from itertools import islice, permutations
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -133,7 +133,24 @@ class Regression:
 
         count = len(self.df) # initial count (to track dropped rows)
 
-        self.df = self.df[self.df['Exclusion'].isna()]
+        ignored_exclusions = set()
+        def ignore_exclusion_code(code: str):
+            new_codes = [code]
+            if len(ignored_exclusions) > 0:
+                for prev_code in ignored_exclusions:
+                    new_code = prev_code + code
+                    for code_letters in permutations(new_code):
+                        new_codes.append(''.join(code_letters))
+            ignored_exclusions.update(new_codes)
+
+        if self.config['filter']['max_leak_rate']:
+            ignore_exclusion_code('l')
+        if self.config['filter']['min_usage']:
+            ignore_exclusion_code('u')
+        if self.config['filter']['min_sleep_efficiency']:
+            ignore_exclusion_code('e')
+
+        self.df = self.df[self.df['Exclusion'].isna() | self.df['Exclusion'].isin(ignored_exclusions)]
         self.df.drop(columns=['Exclusion'], inplace=True)
         new_count = len(self.df)
         if new_count < count:
