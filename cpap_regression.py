@@ -65,7 +65,7 @@ class Regression:
         self.x_fields = [field for field in self.enabled_fields if field.x_field]
         self.multi_x_fields = [field for field in self.enabled_fields if field.multi_x_field]
         self.multi_y_fields = [field for field in self.enabled_fields if field.multi_y_field]
-        self.num_days = None # will be calculated later
+        self.num_days = None  # will be calculated later
 
         columns = {'Date', 'Pressure', 'Exclusion'}
         filter_config = self.config['filter']
@@ -128,8 +128,8 @@ class Regression:
         self.df['Day'] = (self.df['DateTime'] - min_date).dt.days
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
-        self.min_date_time, self.max_date_time, self.num_days, dates = self._filter_dates()
-        orig_count = len(dates)  # initial count (to track dropped rows)
+        self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
+        orig_count = len(self.df)  # initial count (to track dropped rows)
 
         # Dates have to be known before opening log file (ignoring value filtering)
         if self.config['stats']['enabled'] and self.config['save_logs']:
@@ -142,7 +142,6 @@ class Regression:
         for msg in self.deferred_logs:
             self._log(msg)
         self.deferred_logs.clear()
-        self._check_no_data()
 
         # noinspection PyStringConversionWithoutDunderMethod
         date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
@@ -172,16 +171,14 @@ class Regression:
 
             # drop rows with exclusion set (ignoring exclusions handled by explicit filter)
             filtered_df = self.df[self.df['Exclusion'].isna() | self.df['Exclusion'].str.strip().eq('')]
-            self.df, dates = self._filter(dates, filtered_df, "with 'Exclusion'")
-            self._check_no_data()
+            self._filter(filtered_df, "with 'Exclusion'")
 
         # drop Exclusion, no longer needed
         self.df.drop(columns='Exclusion', inplace=True)
 
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
         filtered_df = self.df.dropna(subset=['Pressure'])
-        self.df, dates = self._filter(dates, filtered_df, "with non-numeric 'Pressure'")
-        self._check_no_data()
+        self._filter(filtered_df, "with non-numeric 'Pressure'")
 
         date_counts = self.df['Date'].value_counts()
         if date_counts.iloc[0] > 1:
@@ -213,12 +210,11 @@ class Regression:
             self.last_pressure = self.df['Pressure'].iloc[-1]
 
         # filter by config
-        dates = self._filter_config(dates, 'Pressure', 'min_pressure')
-        dates = self._filter_config(dates, 'Pressure', 'max_pressure')
-        dates = self._filter_config(dates, 'AvgLR', 'max_leak_rate')
-        dates = self._filter_config(dates, 'Usage', 'min_usage')
-        dates = self._filter_config(dates, 'SE%', 'min_sleep_efficiency')
-        self._check_no_data()
+        self._filter_config('Pressure', 'min_pressure')
+        self._filter_config('Pressure', 'max_pressure')
+        self._filter_config('AvgLR', 'max_leak_rate')
+        self._filter_config('Usage', 'min_usage')
+        self._filter_config('SE%', 'min_sleep_efficiency')
 
         invalid_data = False
         for col in self.df.columns:
@@ -295,6 +291,7 @@ class Regression:
             self.min_pressure = pressure_bucket_map[self.min_pressure]
             self.max_pressure = pressure_bucket_map[self.max_pressure]
             self.last_pressure = pressure_bucket_map[self.last_pressure] if self.last_pressure else None
+
         self.center_pressure = (self.min_pressure + self.max_pressure) / 2
 
         numeric_values = self.df.drop(columns=['Date', 'DateTime'])
@@ -315,14 +312,13 @@ class Regression:
                 self.dropped_date: str = self.df.at[self.df.index[0], 'Date']
                 self.df_tomorrow = self.df.iloc[1:]
 
-    def _filter(self, dates: set, filtered_df: DataFrame, desc: str) -> tuple[
-        DataFrame, set]:
-        if len(filtered_df) == len(self.df):
-            return filtered_df, dates
-        new_dates = set(filtered_df['Date'])
-        dropped_dates = list(sorted(dates - new_dates))
-        self._log_dates(dropped_dates, 'Dropped', desc)
-        return filtered_df, new_dates
+    def _filter(self, filtered_df: DataFrame, desc: str):
+        if len(filtered_df) != len(self.df):
+            new_dates = set(filtered_df['DateTime'])
+            dropped_dates = self.df[~self.df['DateTime'].isin(new_dates)]['Date'].to_list()
+            self._log_dates(dropped_dates, 'Dropped', desc)
+            self.df = filtered_df
+            self._check_no_data()
 
     def _log_dates(self, dates: list[str], prefix: str, desc: str | None = None):
         num_dates = len(dates)
@@ -341,27 +337,23 @@ class Regression:
     def _check_no_data(self):
         if len(self.df) == 0:
             self._error('No data')
-        elif len(self.df) == 1:
-            self._error(f'N=1 at Date={self.df.at[self.df.index[-1], 'Date']}')
 
     # noinspection PyStringConversionWithoutDunderMethod
     def run(self):
         date_string = f'{self.df.at[self.df.index[0], 'Date']} and {self.df.at[self.df.index[-1], 'Date']}'
-        self._log(f'\nN={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) between {date_string}')
+        self._log()
+        self._log(f'N={len(self.df)} ({100 * len(self.df) / self.num_days:.1f}%) between {date_string}')
+        self._pressure_counts()
+        self._stats()
+        self._next_pressure()
 
-        if self.config['pressure_counts']['enabled']:
-            self._pressure_counts()
-        elif self.dropped_pressure is not None:
-            self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
-        else:
-            self._log('Will not drop a row tomorrow')
-
-        if len(self.df) < 2:
-            self._error('Minimum N=1')
-
+    def _stats(self):
         if self.config['stats']['enabled']:
-            if self.config['all_correlations']['enabled']:
-                self._all_correlations()
+            if len(self.df) <= 2:
+                self._log(f'\nInsufficient data for stats (N={len(self.df)})')
+                return
+
+            self._all_correlations()
 
             # Correlations, linear, and quadratic regressions
             self._linear_quadratic()
@@ -378,38 +370,35 @@ class Regression:
             # Linear partial dependence
             self._linear_partial_dependence()
 
-        if self.config['next_pressure']['enabled']:
-            self._next_pressure()
-
     def _pressure_counts(self):
-        self._log('Pressure Counts:')
-        for pressure in self.valid_pressures:
-            data_for_pressure = self.df[self.df['Pressure'] == pressure]
-            dates = data_for_pressure['Date']
-            max_dates = self.config['pressure_counts']['max_dates']
-            if max_dates and len(dates) > max_dates:
-                half = max_dates // 2
-                dates_str = list(dates)[:half]
-                dates_str.append('...')
-                dates_str.extend(dates[-half:])
-            else:
-                dates_str = dates
-
-            self._log(f'- {pressure:.1f} ({len(dates)} count): {', '.join(dates_str)}')
-
         def print_summary(df, prefix: str = ''):
             avg_pressure = df['Pressure'].mean()
             self._log(f'{prefix}Mean Pressure: {self._mean_pressure_string(avg_pressure)}')
 
-            if self.config['pressure_counts']['pressure_date_correlation']:
+            if self.config['pressure_counts']['pressure_date_correlation'] and self.df['Pressure'].nunique() > 1:
                 # noinspection PyTypeChecker
                 correl: float = np.corrcoef(df['Pressure'], df['Day'])[0, 1]
-                self._log(f'{prefix}Correlation between Pressure and Date: {self._get_correlation_string(correl)}')
+                self._log(
+                    f'{prefix}Correlation between Pressure and Date: {self._get_correlation_string(correl)}')
 
-        print_summary(self.df)
+        if self.config['pressure_counts']['enabled']:
+            self._log('Pressure Counts:')
+            for pressure in self.valid_pressures:
+                data_for_pressure = self.df[self.df['Pressure'] == pressure]
+                dates = data_for_pressure['Date']
+                max_dates = self.config['pressure_counts']['max_dates']
+                if max_dates and len(dates) > max_dates:
+                    half = max_dates // 2
+                    dates_str = list(dates)[:half]
+                    dates_str.append('...')
+                    dates_str.extend(dates[-half:])
+                else:
+                    dates_str = dates
 
-        if self.dropped_pressure is not None:
-            # noinspection PyStringConversionWithoutDunderMethod
+                self._log(f'- {pressure:.1f} ({len(dates)} count): {', '.join(dates_str)}')
+
+            print_summary(self.df)
+        elif self.dropped_pressure is not None:
             self._log(f'Will drop {self.dropped_date} (Pressure {self.dropped_pressure:.1f}) tomorrow')
             print_summary(self.df_tomorrow, '- ')
         else:
@@ -436,6 +425,9 @@ class Regression:
         #     - subtract last_pressure_boost for most recent pressure
         #     - add random Gaussian number with random_sigma
         #     - add distance from pressure that would center pressure multiplied by center_weight
+
+        if not self.config['next_pressure']['enabled']:
+            return
 
         df = self.df_tomorrow
 
@@ -525,12 +517,10 @@ class Regression:
         return round(scaled) == scaled
 
     # noinspection PyTypeChecker,PyPackages
-    def _filter_dates(self) -> tuple[DatetimeIndex, DatetimeIndex, int, set[str]]:
+    def _filter_dates(self) -> tuple[DatetimeIndex, DatetimeIndex, int]:
         # data already sorted by DateTime, so start with first and last dates
         min_date_time = self.df['DateTime'].iloc[0]
         max_date_time = self.df['DateTime'].iloc[-1]
-
-        dates = set(self.df['Date'])
 
         filter_config = self.config['filter']
         if filter_config['max_date']:
@@ -539,7 +529,7 @@ class Regression:
                 max_date_time = config_max_date
                 filtered_df = self.df.drop(self.df[self.df['DateTime'] > max_date_time].index)
                 desc = f"after 'max_date' ({max_date_time.strftime('%Y-%m-%d')})"
-                self.df, dates = self._filter(dates, filtered_df, desc)
+                self._filter(filtered_df, desc)
             else:
                 self._log(f"Dropped 0 rows for 'max_date' ({max_date_time.strftime('%Y-%m-%d')})")
 
@@ -549,7 +539,7 @@ class Regression:
                 min_date_time = config_min_date
                 filtered_df = self.df.drop(self.df[self.df['DateTime'] < min_date_time].index)
                 desc = f"before 'min_date' ({min_date_time.strftime('%Y-%m-%d')})"
-                self.df, dates = self._filter(dates, filtered_df, desc)
+                self._filter(filtered_df, desc)
             else:
                 self._log(f"Dropped 0 rows for 'min_date' ({min_date_time.strftime('%Y-%m-%d')})")
 
@@ -561,17 +551,17 @@ class Regression:
                 min_date_time = max_date_time - pd.Timedelta(days=num_days - 1)
                 filtered_df = self.df.drop(self.df[self.df['DateTime'] < min_date_time].index)
                 desc = f"beyond 'max_days' ({max_days})"
-                self.df, dates = self._filter(dates, filtered_df, desc)
+                self._filter(filtered_df, desc)
             else:
                 self._log(f"Dropped 0 rows for 'max_days' ({max_days})")
 
-        return min_date_time, max_date_time, num_days, dates
+        return min_date_time, max_date_time, num_days
 
     @staticmethod
     def _rows_string(n: int):
         return f'{n} {'row' if n == 1 else 'rows'}'
 
-    def _error(self, s: str|None = None):
+    def _error(self, s: str | None = None):
         if self.defer_logging:
             for deferred_log in self.deferred_logs:
                 print(deferred_log)
@@ -581,7 +571,7 @@ class Regression:
             self._log(s)
         sys.exit(1)
 
-    def _log(self, s: str):
+    def _log(self, s: str = ''):
         if self.defer_logging:
             self.deferred_logs.append(s)
         else:
@@ -591,30 +581,31 @@ class Regression:
 
     def _outliers(self):
         outliers_config = self.config['outliers']
-        if outliers_config['enabled']:
-            data = self.df[[field.key for field in self.y_fields]]
-            median = np.median(data, axis=0)
-            mad = np.median(np.abs(data - median), axis=0)
-            mod_z_scores = 0.6745 * (data - median) / mad  # scale MAD to match normal distribution
-            outliers = np.abs(mod_z_scores) > outliers_config['threshold']
-            outlier_rows = outliers.any(axis=1)
-            outlier_count: float = outlier_rows.sum()
-            pct = 100 * outlier_count / len(self.df)
-            self._log(f'Dropped {outlier_count} rows ({pct:.1f}%) with outlier data')
+        if not outliers_config['enabled'] or len(self.df) < outliers_config['min_data']:
+            return
+        data = self.df[[field.key for field in self.y_fields]]
+        median = np.median(data, axis=0)
+        mad = np.median(np.abs(data - median), axis=0)
+        mod_z_scores = 0.6745 * (data - median) / mad  # scale MAD to match normal distribution
+        outliers = np.abs(mod_z_scores) > outliers_config['threshold']
+        outlier_rows = outliers.any(axis=1)
+        outlier_count: float = outlier_rows.sum()
+        pct = 100 * outlier_count / len(self.df)
+        self._log(f'Dropped {outlier_count} rows ({pct:.1f}%) with outlier data')
 
-            if outlier_count and outliers_config['verbose']:
-                dates = self.df['Date']
-                for y_field in self.y_fields:
-                    outlier_columns = outliers[y_field.key]
-                    count = outlier_columns.sum()
-                    if count > 0:
-                        filtered_dates = dates[outlier_columns]
-                        self._log(f'- {count} rows with outlier {y_field.key}: {', '.join(filtered_dates)}')
+        if outlier_count and outliers_config['verbose']:
+            dates = self.df['Date']
+            for y_field in self.y_fields:
+                outlier_columns = outliers[y_field.key]
+                count = outlier_columns.sum()
+                if count > 0:
+                    filtered_dates = dates[outlier_columns]
+                    self._log(f'- {count} rows with outlier {y_field.key}: {', '.join(filtered_dates)}')
 
-            # noinspection PyTypeChecker
-            self.df = self.df[~outlier_rows]
+        # noinspection PyTypeChecker
+        self.df = self.df[~outlier_rows]
 
-    def _filter_config(self, dates: set[str], field_name: str, config_key: str) -> set[str]:
+    def _filter_config(self, field_name: str, config_key: str):
         threshold = self.config['filter'][config_key]
         if threshold is not None:
             if config_key.startswith('min_'):
@@ -627,11 +618,13 @@ class Regression:
             desc = f"for '{config_key}' ({threshold})"
             if len(self.df) == len(filtered_df):
                 self._log(f"Dropped 0 rows {desc}")
-            self.df, dates = self._filter(dates, filtered_df, desc)
-            self.df = filtered_df
-        return dates
+            else:
+                self._filter(filtered_df, desc)
 
     def _all_correlations(self):
+        if not self.config['all_correlations']['enabled']:
+            return
+
         correlations = []
         config = self.config['all_correlations']
         min_correlation = config['min_correlation']
@@ -662,7 +655,7 @@ class Regression:
             else:
                 calculate_quadratic = num_x_values >= 3
                 field_corr_and_r2_scores = [
-                    (y_field, self._linear_quadratic_field(y_field, x_field, calculate_quadratic))
+                    (y_field, self._linear_quadratic_field(y_field, x_field))
                     for y_field in self.y_fields if x_field != y_field]
                 if self.config['correlation']['enabled']:
                     fields_and_correlations = [(y_field, corr) for y_field, (corr, _, _) in field_corr_and_r2_scores]
@@ -756,7 +749,7 @@ class Regression:
         return r2
 
     # return correlation, linear R2 score, and quadratic R2 score
-    def _linear_quadratic_field(self, y_field: Field, x_field: Field, calculate_quadratic: bool) -> tuple[
+    def _linear_quadratic_field(self, y_field: Field, x_field: Field) -> tuple[
         float, float, float]:
         x = self.df[x_field.key]
         y = self.df[y_field.key]
@@ -766,63 +759,62 @@ class Regression:
         poly1 = Polynomial.fit(x, y, 1)
         r2_linear = self._r2_score(y, poly1(x), 1)
 
-        if calculate_quadratic:
+        if len(self.df) > 2:
             poly2 = Polynomial.fit(x, y, 2)
             r2_quadratic = self._r2_score(y, poly2(x), 1)
         else:
             poly2 = None
-            r2_quadratic = float('nan')
+            r2_quadratic = float('-inf')
 
         plot_config = self.config['plot']
         if y_field.plot and x_field.plot and plot_config['enabled']:
-            plot_linear = plot_config['linear']
-            plot_quadratic = calculate_quadratic and plot_config['quadratic']
+            min_r2 = plot_config['min_r2'] if 'min_r2' in plot_config else 0
+            plot_linear = plot_config['linear'] and r2_linear >= min_r2
+            plot_quadratic = poly2 and plot_config['quadratic'] and r2_quadratic >= min_r2
 
             if plot_linear or plot_quadratic:
-                if not plot_config['min_r2'] or plot_linear and r2_linear >= plot_config[
-                    'min_r2'] or plot_quadratic and r2_quadratic >= plot_config['min_r2']:
-                    def show_plot(tags: list[str] | None = None):
-                        title_lines = [f'{y_field.title} vs. {x_field.title}']
-                        r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
-                        metrics = [f'correl = {r:.3f}', f'{r2_prefix}linear R² = {r2_linear:.3f}']
-                        if plot_quadratic:
-                            metrics.append(f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
-                        title_lines.append(', '.join(metrics))
-
-                        plt.xlabel(f'{x_field.name}')
-                        plt.ylabel(y_field.name)
-                        plt.title('\n'.join(title_lines))
-                        plt.tight_layout()
-                        if plot_config['save']:
-                            plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
-                        plt.show()
-
-                    if x_field.discrete and plot_config['box']:
-                        sns.boxplot(data=self.df, x=x_field.key, y=y_field.key, showfliers=False)
-                        sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6,
-                                      legend=False)
-                        show_plot(tags=['box'])
-
-                    plt.scatter(x, y)
-
-                    polyline = np.linspace(x.min(), x.max(), 100)
-                    if plot_linear:
-                        # linear regression
-                        plt.plot(polyline, poly1(polyline), color='blue')
-
-                    # quadratic regression
+                def show_plot(tags: list[str] | None = None):
+                    title_lines = [f'{y_field.title} vs. {x_field.title}']
+                    r2_prefix = 'adjusted ' if self.config['r2']['adjusted'] else ''
+                    metrics = [f'correl = {r:.3f}', f'{r2_prefix}linear R² = {r2_linear:.3f}']
                     if plot_quadratic:
-                        c, b, a = poly2.convert().coef
+                        metrics.append(f'{r2_prefix}quadratic R² = {r2_quadratic:.3f}')
+                    title_lines.append(', '.join(metrics))
 
-                        # plot minima or maxima of quadratic regression, if in domain
-                        x_extrema = -b / (2 * a)
-                        # noinspection PyUnresolvedReferences
-                        if x.min() <= x_extrema <= x.max():
-                            plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
+                    plt.xlabel(f'{x_field.name}')
+                    plt.ylabel(y_field.name)
+                    plt.title('\n'.join(title_lines))
+                    plt.tight_layout()
+                    if plot_config['save']:
+                        plt.savefig(self._plot_filename(y_field, x_field, tags), bbox_inches='tight')
+                    plt.show()
 
-                        plt.plot(polyline, poly2(polyline), color='red')
+                if x_field.discrete and plot_config['box']:
+                    sns.boxplot(data=self.df, x=x_field.key, y=y_field.key, showfliers=False)
+                    sns.swarmplot(data=self.df, x=x_field.key, y=y_field.key, color='black', alpha=0.6,
+                                  legend=False)
+                    show_plot(tags=['box'])
 
-                    show_plot()
+                plt.scatter(x, y)
+
+                polyline = np.linspace(x.min(), x.max(), 100)
+                if plot_linear:
+                    # linear regression
+                    plt.plot(polyline, poly1(polyline), color='blue')
+
+                # quadratic regression
+                if plot_quadratic:
+                    c, b, a = poly2.convert().coef
+
+                    # plot minima or maxima of quadratic regression, if in domain
+                    x_extrema = -b / (2 * a)
+                    # noinspection PyUnresolvedReferences
+                    if x.min() <= x_extrema <= x.max():
+                        plt.axvline(x_extrema, color='red', linestyle='--', linewidth=1)
+
+                    plt.plot(polyline, poly2(polyline), color='red')
+
+                show_plot()
 
         return r, r2_linear, r2_quadratic
 

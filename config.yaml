@@ -8,6 +8,7 @@ stats:
 outliers:
   enabled: false # true to enable modified z-score outlier detection
   threshold: 3.5
+  min_data: 10
   verbose: true
 filter:
   max_days:  # optional maximum number of days to include (applied after min_date and max_date)
