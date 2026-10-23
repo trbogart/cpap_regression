@@ -2,7 +2,7 @@ import argparse
 import random
 import sys
 from dataclasses import dataclass
-from itertools import islice, permutations
+from itertools import islice
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -119,11 +119,9 @@ class Regression:
         self.df['Day'] = (self.df['DateTime'] - min_date).dt.days
         self.df['Date'] = self.df['DateTime'].dt.strftime('%Y-%m-%d')
         self.df.sort_values(by='DateTime', inplace=True)
-        self.min_date_time, self.max_date_time, self.num_days = self._filter_dates()
-
-        self.tags = [self.config['tag']] if self.config['tag'] else []
-        if self.config['stats']['bucket']:
-            self.tags.append('bucket')
+        filter_date_logs = [] # store logs until we calculate log file name (depends on dates)
+        self.min_date_time, self.max_date_time, self.num_days, dates = self._filter_dates(filter_date_logs)
+        orig_count = len(dates) # initial count (to track dropped rows)
 
         # Dates have to be known before opening log file (ignoring value filtering)
         if self.config['stats']['enabled'] and self.config['save_logs']:
@@ -131,30 +129,32 @@ class Regression:
         else:
             self.log_file = None
 
-        count = len(self.df) # initial count (to track dropped rows)
+        for log in filter_date_logs:
+            self._log(log)
 
-        ignored_exclusions = set()
-        def ignore_exclusion_code(code: str):
-            new_codes = [code]
-            if len(ignored_exclusions) > 0:
-                for prev_code in ignored_exclusions:
-                    new_code = prev_code + code
-                    for code_letters in permutations(new_code):
-                        new_codes.append(''.join(code_letters))
-            ignored_exclusions.update(new_codes)
+        # noinspection PyStringConversionWithoutDunderMethod
+        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
+        self._log(f'{orig_count} rows between {date_string} ({self.num_days} days)')
 
+        self.tags = [self.config['tag']] if self.config['tag'] else []
+        if self.config['stats']['bucket']:
+            self.tags.append('bucket')
+
+        # ignore exclusion codes handled by explicit filter
         if self.config['filter']['max_leak_rate']:
-            ignore_exclusion_code('l')
+            self.df['Exclusion'] = self.df['Exclusion'].str.replace('L', '', regex=False)
         if self.config['filter']['min_usage']:
-            ignore_exclusion_code('u')
+            self.df['Exclusion'] = self.df['Exclusion'].str.replace('U', '', regex=False)
         if self.config['filter']['min_sleep_efficiency']:
-            ignore_exclusion_code('e')
+            self.df['Exclusion'] = self.df['Exclusion'].str.replace('E', '', regex=False)
 
-        self.df = self.df[self.df['Exclusion'].isna() | self.df['Exclusion'].isin(ignored_exclusions)]
-        self.df.drop(columns=['Exclusion'], inplace=True)
+        # drop rows with exclusion set (ignoring exclusions handled by explicit filter)
+        count = len(self.df)
+        self.df = self.df[self.df['Exclusion'].isna() | self.df['Exclusion'].str.strip().eq('')]
+
         new_count = len(self.df)
         if new_count < count:
-            self._log(f'Dropped {count-new_count} rows with Exclusion set')
+            self._log(f'Dropped {count-new_count} rows with Exclusion')
             count = new_count
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
         self.df.dropna(subset=['Pressure'], inplace=True)
@@ -162,7 +162,6 @@ class Regression:
         if new_count < count:
             self._log(f'Dropped {count-new_count} rows with non-numeric Pressure')
             count = new_count
-
         self._check_no_data()
 
         date_counts = self.df['Date'].value_counts()
@@ -170,18 +169,14 @@ class Regression:
             self._log(f'Duplicate Date: {date_counts.index[0]}')
             sys.exit(1)
 
-        # noinspection PyStringConversionWithoutDunderMethod
-        date_string = f'{self.min_date_time.strftime('%Y-%m-%d')} and {self.max_date_time.strftime('%Y-%m-%d')}'
-        self._log(f'{count} rows between {date_string} ({self.num_days} days)')
-
         if filter_config['min_date'] and pd.to_datetime(filter_config['min_date']) != self.min_date_time:
             self._log("Config 'min_date' can be edited")
         if filter_config['max_date'] and pd.to_datetime(filter_config['max_date']) != self.max_date_time:
             self._log("Config 'max_date' can be edited")
 
-        if count < self.num_days:
-            missing = self.num_days - count
-            self._log(f'Missing {missing} {'rows' if missing > 1 else 'row'} ({100 * missing / self.num_days:.1f}%)')
+        if orig_count < self.num_days:
+            missing = self.num_days - orig_count
+            self._log(f'Missing {self._rows_string(missing)} ({100 * missing / self.num_days:.1f}%)')
 
         # drop invalid data
         self.df.dropna(inplace=True)
@@ -215,7 +210,6 @@ class Regression:
             self.last_pressure = self.df['Pressure'].iloc[-1]
 
         # filter by config
-        dates = set(self.df['Date'])
         dates = self._filter_config(dates, 'Pressure', 'min_pressure')
         dates = self._filter_config(dates, 'Pressure', 'max_pressure')
         dates = self._filter_config(dates, 'AvgLR', 'max_leak_rate')
@@ -500,8 +494,7 @@ class Regression:
         dropped = old_count - new_count
         assert dropped >= 0
         if dropped > 0:
-            self._log(f'Dropped {dropped} {'rows' if dropped != 1 else 'row'} '
-                      f'({100 * dropped / self.num_days:.1f}%) {description}')
+            self._log(f'Dropped {self._rows_string(dropped)} ({100 * dropped / self.num_days:.1f}%) {description}')
         return new_count
 
     @staticmethod
@@ -510,20 +503,41 @@ class Regression:
         return round(scaled) == scaled
 
     # noinspection PyTypeChecker,PyPackages
-    def _filter_dates(self) -> tuple[DatetimeIndex, DatetimeIndex, int]:
+    def _filter_dates(self, logs: list[str]) -> tuple[DatetimeIndex, DatetimeIndex, int, set]:
+        # data already sorted by DateTime
         min_date_time = self.df['DateTime'].iloc[0]
         max_date_time = self.df['DateTime'].iloc[-1]
+
+        dates = set(self.df['Date'])
 
         filter_config = self.config['filter']
         if filter_config['max_date']:
             config_max_date = pd.to_datetime(filter_config['max_date'])
             if config_max_date < max_date_time:
                 max_date_time = config_max_date
-                self.df.drop(self.df[self.df['DateTime'] > max_date_time].index, inplace=True)
+                filtered_df = self.df.drop(self.df[self.df['DateTime'] > config_max_date].index)
+                new_dates = set(filtered_df['Date'])
+                removed_dates = sorted(dates - new_dates)
+                removed_rows = ', '.join(removed_dates)
+                removed_row_count = len(removed_dates)
+                dates = new_dates
+                self.df = filtered_df
+                logs.append(f"Dropped {self._rows_string(removed_row_count)} rows after 'max_date' "
+                            f"{max_date_time.strftime('%Y-%m-%d')}: {removed_rows}")
+
         if filter_config['min_date']:
             config_min_date = pd.to_datetime(filter_config['min_date'])
             if config_min_date > min_date_time:
                 min_date_time = config_min_date
+                filtered_df = self.df.drop(self.df[self.df['DateTime'] < config_min_date].index)
+                new_dates = set(filtered_df['Date'])
+                removed_dates = sorted(dates - new_dates)
+                removed_rows = ', '.join(removed_dates)
+                removed_row_count = len(removed_dates)
+                dates = new_dates
+                self.df = filtered_df
+                logs.append(f"Dropped {self._rows_string(removed_row_count)} rows before 'min_date' "
+                            f"{max_date_time.strftime('%Y-%m-%d')}: {removed_rows}")
 
         num_days = (max_date_time - min_date_time).days + 1
         if filter_config['max_days']:
@@ -531,11 +545,21 @@ class Regression:
             if max_days < num_days:
                 num_days = max_days
                 min_date_time = max_date_time - pd.Timedelta(days=num_days - 1)
+                filtered_df = self.df.drop(self.df[self.df['DateTime'] < min_date_time].index)
+                new_dates = set(filtered_df['Date'])
+                removed_dates = sorted(dates - new_dates)
+                removed_rows = ', '.join(removed_dates)
+                removed_row_count = len(removed_dates)
+                dates = new_dates
+                self.df = filtered_df
+                logs.append(f"Dropped {self._rows_string(removed_row_count)} beyond 'max_days' {max_days}: "
+                            f"{removed_rows}")
 
-        if min_date_time > self.df['DateTime'].iloc[0]:
-            self.df.drop(self.df[self.df['DateTime'] < min_date_time].index, inplace=True)
+        return min_date_time, max_date_time, num_days, dates
 
-        return min_date_time, max_date_time, num_days
+    @staticmethod
+    def _rows_string(n: int):
+        return f'{n} {'row' if n == 0 else 'rows'}'
 
     def _log(self, s: str):
         print(s)
@@ -585,8 +609,7 @@ class Regression:
         num_removed = len(dates) - len(new_dates)
         if self.config['filter']['verbose']:
             if config_key is not None:
-                self._log(f'Dropped {num_removed} {'rows' if num_removed != 1 else 'row'} for '
-                          f'{config_key.replace('_', ' ')}: {threshold}')
+                self._log(f'Dropped {self._rows_string(num_removed)} for {config_key.replace('_', ' ')}: {threshold}')
             elif num_removed > 0:
                 # for weight
                 self._log(f'Dropped {num_removed} rows with zero {field_name}')
