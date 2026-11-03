@@ -180,6 +180,10 @@ class Regression:
         filtered_df = self.df.dropna(subset=['Pressure'])
         self._filter(filtered_df, "with non-numeric 'Pressure'")
 
+        # convert all remaining columns to numeric values, raising any error
+        numeric_cols = [field.key for field in self.enabled_fields]
+        self.df[numeric_cols] = self.df[numeric_cols].apply(pd.to_numeric)
+
         date_counts = self.df['Date'].value_counts()
         if date_counts.iloc[0] > 1:
             self._error(f'Duplicate Date: {date_counts.index[0]}')
@@ -236,7 +240,7 @@ class Regression:
         if calculate_spo2_drop:
             self.df['SpO2 Drop'] = 100 - self.df['SpO2']
 
-        # strip outliers
+        # strip outliers (if enabled)
         self._outliers()
 
         if filter_config['min_pressure']:
@@ -609,9 +613,9 @@ class Regression:
         threshold = self.config['filter'][config_key]
         if threshold is not None:
             if config_key.startswith('min_'):
-                filtered_df = self.df[self.df[field_name] > threshold]
+                filtered_df = self.df[self.df[field_name] >= threshold]
             elif config_key.startswith('max_'):
-                filtered_df = self.df[self.df[field_name] < threshold]
+                filtered_df = self.df[self.df[field_name] <= threshold]
             else:
                 filtered_df = self.df[self.df[field_name] == threshold]
 
