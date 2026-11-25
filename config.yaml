@@ -14,14 +14,15 @@ filter:
   max_days:  # optional maximum number of days to include (applied after min_date and max_date)
   min_date:  # optional min date in yyyy-mm-dd format
   max_date:  # optional max date in yyyy-mm-dd format
-  min_pressure: 7 # optional min Pressure
-  max_pressure: 8 # optional max Pressure
-  max_leak_rate: 2.0 # optional max AvgLR
+  min_pressure: 7.0 # optional min Pressure
+  max_pressure: 7.6 # optional max Pressure
+  max_leak_rate: 4.0  # optional max AvgLR
   min_usage: 6.0 # optional min Usage (hrs)
   min_sleep_efficiency:  # optional min ratio between Sleep and Usage
+  allow_vcom: true # optional to ignore V Exclusion
 pressure_transform: # use to combine pressure with another pressure (applied before filters)
 pressure_counts:
-  enabled: true # true to show a breakdown of dates for each pressure
+  enabled: false # true to show a breakdown of dates for each pressure
   max_dates: 6 # optional maximum number of dates displayed for each pressure
   pressure_date_correlation: true # true to display pressure/date correlation
 next_pressure:
@@ -76,98 +77,69 @@ linear_partial_dependence:
 # - discrete: true if discrete field (box plot supported)
 # - default: default value if not set
 fields:
-  - key: Comb FL
-    name: Combined FL # % of breath
-    y_field: true # excellent, no need to track
-    plot: false
-    # Combined FL Percentage - https://airwaylab.app/glossary/combined-fl-percentage
-    # The percentage of breaths classified as flow-limited by either NED (above 34%) or Flatness Index (above 0.85).
-    # Combines both detection methods for a more complete picture.
-    # Good < 20%, Borderline 20-40%, Elevated > 40%
-  - key: GI
-    name: Glasgow Index
-    y_field: true
-    plot: false
-    # Glasgow Index - https://airwaylab.app/glossary/glasgow-index
-    # A composite breath-shape scoring system that evaluates 9 flow limitation characteristics per breath on a 0-9 scale.
-    # Lower scores indicate better therapy.
-    # Good < 1.0, Borderline 1.0-2.0, Elevated > 2.0
-  - key: GI FT
-    name: GI Flat Top
-    y_field: false # excellent, no need to track
-    # Glasgow Index - Flat Top
-    # Identifies inspiratory flow plateaus where flow reaches a ceiling and cannot increase despite continued
-    # inspiratory effort. This is the classic "flow limitation" pattern seen in clinical polysomnography.
-  - key: GI TH
-    name: GI Top Heavy
-    y_field: true
-    # Glasgow Index - Top Heavy
-    # Quantifies how much of the breath's tidal volume is delivered in the first half of inspiration versus the second
-    # half. Top-heavy breaths indicate early flow limitation onset. (Computed but excluded from overall score.)
-  - key: GI VA
-    name: GI Var Amp
-    y_field: true
-    # Glasgow Index - Variable Amplitude
-    # Measures breath-to-breath variability in tidal volume. High variability indicates unstable ventilation,
-    # which can accompany cycling between obstruction and recovery.
-  - key: NED RDI
+  - key: BDI # Oura
+    name: Breathing Disruption Index
     y_field: true
     plot: true
-    # RDI (Respiratory Disturbance Index) - https://airwaylab.app/glossary/rdi
+  - key: GI TH # Glasgow Index - Top Heavy
+    name: GI Top Heavy
+    y_field: true
+    # Quantifies how much of the breath's tidal volume is delivered in the first half of inspiration versus the second
+    # half. Top-heavy breaths indicate early flow limitation onset. (Computed but excluded from overall score.)
+  - key: GI VA # Glasgow Index - Variable Amplitude
+    name: GI Var Amp
+    y_field: true
+    # Measures breath-to-breath variability in tidal volume. High variability indicates unstable ventilation,
+    # which can accompany cycling between obstruction and recovery.
+  - key: NED RDI # NED estimated RDI (Respiratory Disturbance Index) - https://airwaylab.app/glossary/rdi
+    y_field: true
+    plot: true
     # The total number of respiratory events per hour, including apneas, hypopneas, and RERAs.
     # A more comprehensive measure than AHI alone.
     # AirwayLab estimates RDI by combining detected RERAs (NED engine) with detected hypopneas (flow amplitude drops
     # sustained for 10+ seconds). Apneas cannot be reliably detected from flow data alone, so this estimate is a
     # conservative lower bound. It is most accurate when apneas are rare, as is typical in UARS.
     # Good < 5/hr, Borderline 5-15/hr, Elevated >15/hr
-  - key: BOI
+  - key: BOI # Brief Obstruction Index
     name: Brief Obstruction Index
     y_field: true
     plot: true
-  - key: AHI
+  - key: RDI # RERA (Respiratory Effort-Related Arousal, CPAP)
     y_field: true
-    # AHI (Apnea-Hypopnea Index) - https://airwaylab.app/glossary/ahi
-    # The number of apneas and hypopneas per hour of sleep. The most widely used measure of sleep apnea severity,
-    # but it misses flow limitation and RERAs.
-  - key: RDI # calculated from CPAP AHI + RERA
-    y_field: false
-    # RERA (Respiratory Effort-Related Arousal) - https://airwaylab.app/glossary/rera
+    # https://airwaylab.app/glossary/rera
     # A sequence of flow-limited breaths that terminates in a cortical arousal without meeting criteria for apnea or
     # hypopnea. A hallmark of Upper Airway Resistance Syndrome.
     # Good < 5/hr, Borderline 5-10/h4, Elevated > 10/hr
-  - key: CAI
+  - key: CAI # Central Apnea Index (CPAP)
     y_field: true
     plot: true
-    # Central Apnea Index (CPAP)
-  - key: 95%FL
+  - key: AvgFL # Average flow limitation (0-1, CPAP)
+    name: Average Flow Limitation
+    y_field: true
+    plot: true
+  - key: 95%FL # 95%ile Flow Limitation (0-1, CPAP)
     name: 95% Flow Limitation
     y_field: false
-    # 95%ile Flow Limitation (CPAP)
-  - key: AvgLR
+  - key: AvgLR # Average leak rage (L/min, CPAP)
     name: Average Leak Rate
-    plot: true
-    x_field: false
+    plot: false
+    x_field: true
     y_field: true
     multi_x_field: true
-    # Average leak rage (CPAP)
-  - key: IFL
-    title: IFL Symptom Risk %
-    y_field: true
-    plot: true
-    # Flow Limitation (Inspiratory Flow Limitation) - https://airwaylab.app/glossary/flow-limitation
-    # Partial narrowing of the upper airway during inspiration that restricts airflow without complete collapse.
-    # The core phenomenon that AirwayLab analyses.
   - key: Day # numeric day
     plot: false
     x_field: false
     multi_x_field: true
-  - key: Pressure
+  - key: Pressure # Pressure
     plot: true
     discrete: true
     x_field: true
     multi_x_field: true
-  - key: Wt
+  - key: Wt # Weekly rolling weight
     name: Weight
     plot: false
     x_field: false
     multi_x_field: true
+  - key: AmpCV # Amplitude CV
+    y_field: true
+    plot: true

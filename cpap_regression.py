@@ -67,7 +67,7 @@ class Regression:
         self.multi_y_fields = [field for field in self.enabled_fields if field.multi_y_field]
         self.num_days = None  # will be calculated later
 
-        columns = {'Date', 'Pressure', 'Exclusion'}
+        columns = {'Date', 'Pressure', 'Excl'}
         filter_config = self.config['filter']
         if filter_config.get('max_leak_rate') is not None:
             columns.add('AvgLR')
@@ -75,8 +75,6 @@ class Regression:
             columns.add('Usage')
         if filter_config.get('min_sleep_efficiency') is not None:
             columns.add('SE%')
-        calculate_rdi = False
-        calculate_ned_mean_split = False
         calculate_spo2_drop = False
 
         gi_normal = {
@@ -92,22 +90,12 @@ class Regression:
         }
 
         for field in self.enabled_fields:
-            if field.key == 'RDI':
-                calculate_rdi = True
-            elif field.key == 'Day' or field.key == 'DateTime':
+            if field.key == 'Day' or field.key == 'DateTime':
                 pass  # calculated from Date, which is always included
-            elif field.key == 'NED Mean Split':
-                calculate_ned_mean_split = True
             elif field.key == 'SpO2 Drop':
                 calculate_spo2_drop = True
             else:
                 columns.add(field.key)
-        if calculate_rdi:
-            columns.add('AHI')
-            columns.add('RERA')
-        if calculate_ned_mean_split:
-            columns.add('H1 NED Mean')
-            columns.add('H2 NED Mean')
         if calculate_spo2_drop:
             columns.add('SpO2')
 
@@ -161,20 +149,23 @@ class Regression:
             self.tags.append('bucket')
 
         # ignore exclusion codes handled by explicit filter
-        if isinstance(self.df['Exclusion'].dtype, pd.StringDtype):
+        if isinstance(self.df['Excl'].dtype, pd.StringDtype):
             if self.config['filter']['max_leak_rate']:
-                self.df['Exclusion'] = self.df['Exclusion'].str.replace('L', '', regex=False)
+                self.df['Excl'] = self.df['Excl'].str.replace('L', '', regex=False)
             if self.config['filter']['min_usage']:
-                self.df['Exclusion'] = self.df['Exclusion'].str.replace('U', '', regex=False)
+                self.df['Excl'] = self.df['Excl'].str.replace('U', '', regex=False)
             if self.config['filter']['min_sleep_efficiency']:
-                self.df['Exclusion'] = self.df['Exclusion'].str.replace('E', '', regex=False)
+                self.df['Excl'] = self.df['Excl'].str.replace('E', '', regex=False)
+            if self.config['filter']['allow_vcom']:
+                self.df['Excl'] = self.df['Excl'].str.replace('V', '', regex=False)
+
 
             # drop rows with exclusion set (ignoring exclusions handled by explicit filter)
-            filtered_df = self.df[self.df['Exclusion'].isna() | self.df['Exclusion'].str.strip().eq('')]
-            self._filter(filtered_df, "with 'Exclusion'")
+            filtered_df = self.df[self.df['Excl'].isna() | self.df['Excl'].str.strip().eq('')]
+            self._filter(filtered_df, "with 'Excl'")
 
-        # drop Exclusion, no longer needed
-        self.df.drop(columns='Exclusion', inplace=True)
+        # drop Excl, no longer needed
+        self.df.drop(columns='Excl', inplace=True)
 
         self.df['Pressure'] = pd.to_numeric(self.df['Pressure'], errors='coerce')
         filtered_df = self.df.dropna(subset=['Pressure'])
@@ -230,12 +221,6 @@ class Regression:
                     self._log_dates(invalid_dates, 'Invalid data in', f"in column '{col}'")
         if invalid_data:
             self._error()
-
-        if calculate_rdi:
-            self.df['RDI'] = self.df['AHI'] + self.df['RERA']
-
-        if calculate_ned_mean_split:
-            self.df['NED Mean Split'] = np.abs(self.df['H2 NED Mean'] - self.df['H1 NED Mean'])
 
         if calculate_spo2_drop:
             self.df['SpO2 Drop'] = 100 - self.df['SpO2']
